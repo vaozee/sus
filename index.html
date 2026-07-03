@@ -1055,7 +1055,6 @@ ${kpiCards.map(c=>`
   // ── Render Charts ──
   const COLORS=['#22c55e','#d4af37','#60a5fa','#f87171','#a78bfa','#34d399','#fb923c','#e879f9','#38bdf8','#f472b6'];
   const axStyle={style:{colors:'#cfe8d6',fontSize:'11px'}};
-  const mkC=(id,opts)=>{if(!document.querySelector(id))return;const c=new ApexCharts(document.querySelector(id),opts);c.render();charts_=charts_||[];charts_.push(c);charts.push(c);};
 
   // Chart 1: Produk Tersering (horizontal bar, sorted desc)
   const c1labels=(charts.topItems?.labels||[]).slice().reverse();
@@ -1071,7 +1070,7 @@ ${kpiCards.map(c=>`
       colors:['#22c55e'],
       fill:{type:'gradient',gradient:{shade:'dark',type:'horizontal',gradientToColors:['#d4af37'],opacityFrom:.95,opacityTo:.85}},
       tooltip:{theme:'dark'},grid:{borderColor:'#1c3d26',strokeDashArray:4}
-    }).render().then(c=>charts.push(c)).catch(()=>{});
+    }).render().catch(()=>{});
   }
 
   // Chart 2: Total Belanja Terbesar (Donut)
@@ -1087,7 +1086,7 @@ ${kpiCards.map(c=>`
       legend:{position:'bottom',labels:{colors:'#cfe8d6',fontSize:'10px'}},
       tooltip:{theme:'dark',y:{formatter:v=>fmtK(v)}},
       stroke:{colors:['#081a0e'],width:2},dataLabels:{enabled:false}
-    }).render().then(c=>charts.push(c)).catch(()=>{});
+    }).render().catch(()=>{});
   }
 
   // Chart 3: Tren Belanja per Transaksi (Area)
@@ -1103,7 +1102,7 @@ ${kpiCards.map(c=>`
       yaxis:{labels:{formatter:v=>fmtK(v),...axStyle}},
       colors:['#22c55e'],tooltip:{theme:'dark',y:{formatter:v=>fmtK(v)}},
       grid:{borderColor:'#1c3d26',strokeDashArray:4},markers:{size:3,colors:['#22c55e'],strokeColors:['#d4af37'],strokeWidth:1}
-    }).render().then(c=>charts.push(c)).catch(()=>{});
+    }).render().catch(()=>{});
   }
 
   // ── Rincian Belanja Table ──
