@@ -347,6 +347,11 @@ function getViewerSS() {
  * dicocokkan dengan Customer ID. Coba named range RANGECUSTOMERS dulu,
  * fallback ke sheet biasa bernama "Customers".
  */
+// Normalisasi ID: trim + uppercase, supaya "cust001", "CUST001 ", "Cust001" dianggap sama.
+function normId(v) {
+  return (v === undefined || v === null) ? '' : v.toString().trim().toUpperCase();
+}
+
 function getViewerSimpananRow(customerId) {
   let vss;
   try { vss = getViewerSS(); } catch (e) { return {}; }
@@ -367,9 +372,10 @@ function getViewerSimpananRow(customerId) {
   const headers = vals[0].map(h => String(h).trim());
   const iId = headers.indexOf('Customer ID');
   if (iId === -1) return {};
+  const target = normId(customerId);
   for (let i = 1; i < vals.length; i++) {
     const row = vals[i];
-    if ((row[iId] || '').toString().trim() !== customerId) continue;
+    if (normId(row[iId]) !== target) continue;
     const obj = {};
     headers.forEach((h, j) => { obj[h] = row[j] !== undefined ? row[j] : ''; });
     return obj;
@@ -692,9 +698,10 @@ function getViewerDashboard(p) {
       const vals = custRange.getValues();
       const headers = vals[0].map(h => String(h).trim());
       const iId = headers.indexOf('Customer ID');
+      const targetId = normId(customerId);
       for (let i = 1; i < vals.length; i++) {
         const row = vals[i];
-        if ((row[iId] || '').toString().trim() !== customerId) continue;
+        if (normId(row[iId]) !== targetId) continue;
         headers.forEach((h, j) => { member[h] = row[j] !== undefined ? row[j] : ''; });
         break;
       }
@@ -704,6 +711,21 @@ function getViewerDashboard(p) {
   // ── 1b. Data Simpanan (Simpanan Pokok/Wajib/SHU dll) dari spreadsheet Viewer terpisah ──
   let simpanan = {};
   try { simpanan = getViewerSimpananRow(customerId); } catch (e) { /* tolerate */ }
+
+  // Jika Customer ID tidak ditemukan sama sekali di sheet Customers utama MAUPUN
+  // di spreadsheet Simpanan Viewer, hentikan lebih awal dengan pesan yang jelas
+  // (bukannya diam-diam menampilkan dashboard kosong berisi Rp 0 / "–").
+  const memberEmpty   = Object.keys(member).length === 0;
+  const simpananEmpty = Object.keys(simpanan).length === 0;
+  if (memberEmpty && simpananEmpty) {
+    return {
+      ok: false,
+      error: 'Customer ID "' + customerId + '" (dari Linked Customer ID akun ini) tidak ditemukan ' +
+        'di sheet Customers database utama maupun di spreadsheet Simpanan Viewer. ' +
+        'Mohon periksa kembali kolom "Linked Customer ID" pada sheet Users, dan pastikan nilainya ' +
+        'sama persis dengan "Customer ID" pada sheet Customers.'
+    };
+  }
 
   // Helper: ambil nilai kolom khusus koperasi, toleran jika tidak ada.
   // Prioritas: spreadsheet Simpanan Viewer, fallback ke sheet Customers database utama.
@@ -719,10 +741,11 @@ function getViewerDashboard(p) {
       if (vals.length > 1) {
         const headers = vals[0].map(h => String(h).trim());
         const iCid = headers.indexOf('Customer ID');
+        const targetIdSd = normId(customerId);
         for (let i = 1; i < vals.length; i++) {
           const row = vals[i];
           if (row.every(v => v === '' || v === null)) continue;
-          if ((row[iCid] || '').toString().trim() !== customerId) continue;
+          if (normId(row[iCid]) !== targetIdSd) continue;
           const obj = {};
           headers.forEach((h, j) => { obj[h] = row[j] !== undefined ? row[j] : ''; });
           sd.push(obj);
@@ -740,10 +763,11 @@ function getViewerDashboard(p) {
       if (vals.length > 1) {
         const headers = vals[0].map(h => String(h).trim());
         const iCid = headers.indexOf('Customer ID');
+        const targetIdRc = normId(customerId);
         for (let i = 1; i < vals.length; i++) {
           const row = vals[i];
           if (row.every(v => v === '' || v === null)) continue;
-          if ((row[iCid] || '').toString().trim() !== customerId) continue;
+          if (normId(row[iCid]) !== targetIdRc) continue;
           const obj = {};
           headers.forEach((h, j) => {
             let v = row[j];
