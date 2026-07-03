@@ -356,21 +356,40 @@ function getViewerSimpananRow(customerId) {
   let vss;
   try { vss = getViewerSS(); } catch (e) { return {}; }
 
-  let sh = null;
-  try {
-    const rng = vss.getRangeByName(RNG_CUSTOMERS);
-    if (rng) sh = rng;
-  } catch (e) { /* ignore */ }
+  // Sumber utama: tab "Sheet1" pada spreadsheet Simpanan Viewer.
+  // Header aktual: No, Code Pelanggan, NIK, Nama, Jabatan, Hit SHU,
+  // Tanggal Masuk Anggota, Simpanan Pokok, Simpanan Wajib, Belanja Bulan ini, Nilai SHU
+  let sh = vss.getSheetByName('Sheet1');
   if (!sh) {
+    // Fallback ke skema lama (named range / sheet "Customers"), untuk kompatibilitas.
+    try {
+      const rng = vss.getRangeByName(RNG_CUSTOMERS);
+      if (rng) {
+        const vals = rng.getValues();
+        return matchSimpananRow_(vals, customerId, ['Customer ID', 'Code Pelanggan']);
+      }
+    } catch (e) { /* ignore */ }
     const plain = vss.getSheetByName(SH_CUSTOMERS);
-    if (plain) sh = plain.getDataRange();
+    if (!plain) return {};
+    return matchSimpananRow_(plain.getDataRange().getValues(), customerId, ['Customer ID', 'Code Pelanggan']);
   }
-  if (!sh) return {};
 
-  const vals = sh.getValues();
-  if (vals.length < 1) return {};
+  const lastRow = sh.getLastRow();
+  const lastCol = sh.getLastColumn();
+  if (lastRow < 1) return {};
+  const vals = sh.getRange(1, 1, lastRow, lastCol).getValues();
+  return matchSimpananRow_(vals, customerId, ['Code Pelanggan', 'Customer ID']);
+}
+
+// Helper: cocokkan baris berdasarkan salah satu dari beberapa kemungkinan nama kolom ID.
+function matchSimpananRow_(vals, customerId, idColCandidates) {
+  if (!vals || vals.length < 1) return {};
   const headers = vals[0].map(h => String(h).trim());
-  const iId = headers.indexOf('Customer ID');
+  let iId = -1;
+  for (const cand of idColCandidates) {
+    iId = headers.indexOf(cand);
+    if (iId !== -1) break;
+  }
   if (iId === -1) return {};
   const target = normId(customerId);
   for (let i = 1; i < vals.length; i++) {
@@ -381,6 +400,73 @@ function getViewerSimpananRow(customerId) {
     return obj;
   }
   return {};
+}
+
+/**
+ * Ambil semua baris item-belanja milik seorang anggota dari tab "Rincian"
+ * pada spreadsheet Simpanan Viewer, lalu group per RESI (1 RESI = 1 transaksi/nota,
+ * bisa berisi banyak baris NAMA BARANG).
+ * Header aktual tab Rincian: CODE, Code Pelanggan, NO., RESI, KODE PELANGGAN, COB,
+ * NAMA PELANGGAN, NAMA BARANG, ALAMAT PELANGGAN, SATUAN, QTY, HARGA, TOTAL, JUMLAH
+ */
+function getViewerRincianRows(customerId) {
+  let vss;
+  try { vss = getViewerSS(); } catch (e) { return []; }
+
+  const sh = vss.getSheetByName('Rincian');
+  if (!sh) return [];
+  const lastRow = sh.getLastRow();
+  const lastCol = sh.getLastColumn();
+  if (lastRow < 2) return [];
+
+  const vals = sh.getRange(1, 1, lastRow, lastCol).getValues();
+  const headers = vals[0].map(h => String(h).trim());
+  const iCode = headers.indexOf('Code Pelanggan');
+  if (iCode === -1) return [];
+  const target = normId(customerId);
+
+  const rows = [];
+  for (let i = 1; i < vals.length; i++) {
+    const row = vals[i];
+    if (normId(row[iCode]) !== target) continue;
+    const obj = {};
+    headers.forEach((h, j) => { obj[h] = row[j] !== undefined ? row[j] : ''; });
+    rows.push(obj);
+  }
+  return rows;
+}
+
+/**
+ * Group baris-baris Rincian (per item) menjadi transaksi (per RESI).
+ * Return array { resi, namaPelanggan, alamatPelanggan, amountReceived, items:[...] }
+ * diurutkan sesuai urutan kemunculan di sheet (biasanya = urutan tanggal, terbaru di bawah).
+ */
+function groupRincianByResi_(rows) {
+  const map = {};
+  const order = [];
+  rows.forEach(r => {
+    const resi = (r['RESI'] || '').toString().trim() || '(tanpa resi)';
+    if (!map[resi]) {
+      map[resi] = {
+        resi,
+        namaPelanggan: r['NAMA PELANGGAN'] || '',
+        alamatPelanggan: r['ALAMAT PELANGGAN'] || '',
+        amountReceived: 0,
+        items: []
+      };
+      order.push(resi);
+    }
+    const total = parseNum(r['TOTAL']);
+    map[resi].amountReceived += total;
+    map[resi].items.push({
+      itemName: r['NAMA BARANG'] || '',
+      satuan:   r['SATUAN'] || '',
+      qty:      parseNum(r['QTY']),
+      harga:    parseNum(r['HARGA']),
+      total
+    });
+  });
+  return order.map(resi => map[resi]).reverse(); // terbaru duluan
 }
 
 /**
@@ -732,75 +818,94 @@ function getViewerDashboard(p) {
   const mVal = (k) => (simpanan[k] !== undefined && simpanan[k] !== '') ? simpanan[k] : (member[k] !== undefined ? member[k] : '');
   const mNum = (k) => parseNum(mVal(k));
 
-  // ── 2. Sales Details milik customer ini ──
-  let sd = [];
-  try {
-    const sdRange = ss.getRangeByName(RNG_SD);
-    if (sdRange) {
-      const vals = sdRange.getValues();
-      if (vals.length > 1) {
-        const headers = vals[0].map(h => String(h).trim());
-        const iCid = headers.indexOf('Customer ID');
-        const targetIdSd = normId(customerId);
-        for (let i = 1; i < vals.length; i++) {
-          const row = vals[i];
-          if (row.every(v => v === '' || v === null)) continue;
-          if (normId(row[iCid]) !== targetIdSd) continue;
-          const obj = {};
-          headers.forEach((h, j) => { obj[h] = row[j] !== undefined ? row[j] : ''; });
-          sd.push(obj);
+  // ── 2. Riwayat belanja anggota ini dari tab "Rincian" (spreadsheet Simpanan Viewer) ──
+  let rincianRaw = [];
+  try { rincianRaw = getViewerRincianRows(customerId); } catch (e) { /* tolerate */ }
+  let rincian = groupRincianByResi_(rincianRaw);
+
+  // Fallback: kalau tidak ada apa-apa di tab Rincian, coba skema lama (SalesDetails+Receipts
+  // di spreadsheet utama), untuk anggota yang datanya masih berada di sistem lama.
+  if (!rincianRaw.length) {
+    let sd = [], receipts = [];
+    try {
+      const sdRange = ss.getRangeByName(RNG_SD);
+      if (sdRange) {
+        const vals = sdRange.getValues();
+        if (vals.length > 1) {
+          const headers = vals[0].map(h => String(h).trim());
+          const iCid = headers.indexOf('Customer ID');
+          const targetIdSd = normId(customerId);
+          for (let i = 1; i < vals.length; i++) {
+            const row = vals[i];
+            if (row.every(v => v === '' || v === null)) continue;
+            if (normId(row[iCid]) !== targetIdSd) continue;
+            const obj = {};
+            headers.forEach((h, j) => { obj[h] = row[j] !== undefined ? row[j] : ''; });
+            sd.push(obj);
+          }
         }
       }
-    }
-  } catch (e) { /* tolerate */ }
-
-  // ── 3. Receipts milik customer ini ──
-  let receipts = [];
-  try {
-    const rcRange = ss.getRangeByName(RNG_RECEIPTS);
-    if (rcRange) {
-      const vals = rcRange.getValues();
-      if (vals.length > 1) {
-        const headers = vals[0].map(h => String(h).trim());
-        const iCid = headers.indexOf('Customer ID');
-        const targetIdRc = normId(customerId);
-        for (let i = 1; i < vals.length; i++) {
-          const row = vals[i];
-          if (row.every(v => v === '' || v === null)) continue;
-          if (normId(row[iCid]) !== targetIdRc) continue;
-          const obj = {};
-          headers.forEach((h, j) => {
-            let v = row[j];
-            if (String(h).endsWith('Date') && v instanceof Date) {
-              v = Utilities.formatDate(v, ss.getSpreadsheetTimeZone(), 'MM/dd/yyyy');
-            }
-            obj[h] = v !== undefined ? v : '';
-          });
-          receipts.push(obj);
+    } catch (e) { /* tolerate */ }
+    try {
+      const rcRange = ss.getRangeByName(RNG_RECEIPTS);
+      if (rcRange) {
+        const vals = rcRange.getValues();
+        if (vals.length > 1) {
+          const headers = vals[0].map(h => String(h).trim());
+          const iCid = headers.indexOf('Customer ID');
+          const targetIdRc = normId(customerId);
+          for (let i = 1; i < vals.length; i++) {
+            const row = vals[i];
+            if (row.every(v => v === '' || v === null)) continue;
+            if (normId(row[iCid]) !== targetIdRc) continue;
+            const obj = {};
+            headers.forEach((h, j) => {
+              let v = row[j];
+              if (String(h).endsWith('Date') && v instanceof Date) {
+                v = Utilities.formatDate(v, ss.getSpreadsheetTimeZone(), 'MM/dd/yyyy');
+              }
+              obj[h] = v !== undefined ? v : '';
+            });
+            receipts.push(obj);
+          }
         }
       }
-    }
-  } catch (e) { /* tolerate */ }
+    } catch (e) { /* tolerate */ }
 
-  // ── 4. KPI ──
-  const totalBelanja = sd.reduce((s, r) => s + parseNum(r['Total Sales Price']), 0);
-  const now = new Date();
-  const thisMonth = now.getMonth();
-  const thisYear  = now.getFullYear();
-  const belanjaMonth = receipts.reduce((s, r) => {
-    const d = tryDate(r['Trx Date']);
-    if (!d) return s;
-    if (d.getMonth() === thisMonth && d.getFullYear() === thisYear) {
-      return s + parseNum(r['Amount Received']);
+    if (receipts.length || sd.length) {
+      rincian = receipts.map(rc => {
+        const soId = (rc['SO ID'] || '').toString().trim();
+        const items = sd.filter(d => (d['SO ID'] || '').toString().trim() === soId);
+        return {
+          resi: rc['Trx ID'] || soId,
+          trxDate: rc['Trx Date'],
+          pmtMode: rc['PMT Mode'],
+          amountReceived: parseNum(rc['Amount Received']),
+          items: items.map(d => ({
+            itemName: d['Item Name'] || '',
+            satuan: d['Item Subcategory'] || d['Item Category'] || '',
+            qty: parseNum(d['QTY Sold']),
+            harga: parseNum(d['Unit Price']),
+            total: parseNum(d['Total Sales Price'])
+          }))
+        };
+      }).sort((a, b) => (tryDate(b.trxDate) || 0) - (tryDate(a.trxDate) || 0));
+      rincianRaw = sd; // dipakai sekadar penanda "ada data" untuk kpi/chart fallback di bawah
     }
-    return s;
-  }, 0);
+  }
 
-  // ── 5. Chart 1: Produk Tersering Dibeli (Top 10 by QTY Sold) ──
+  // ── 3. KPI ──
+  // "Belanja Bulan Ini" sudah computed manual di kolom Sheet1, pakai langsung (lebih akurat
+  // daripada dihitung ulang dari tanggal transaksi, karena tab Rincian tidak punya kolom tanggal).
+  const belanjaMonth = mNum('Belanja Bulan ini');
+  const totalBelanja = rincian.reduce((s, rc) => s + (rc.amountReceived || 0), 0);
+  const totalItem = rincian.reduce((s, rc) => s + rc.items.reduce((si, it) => si + (it.qty || 0), 0), 0);
+
+  // ── 4. Chart 1: Produk Tersering Dibeli (Top 10 by QTY) ──
   const itemQtyMap = {};
-  sd.forEach(r => {
-    const item = (r['Item Name'] || r['Item Type'] || 'Unknown').toString().trim();
-    itemQtyMap[item] = (itemQtyMap[item] || 0) + parseNum(r['QTY Sold']);
+  rincianRaw.forEach(r => {
+    const item = (r['NAMA BARANG'] || r['Item Name'] || 'Unknown').toString().trim();
+    itemQtyMap[item] = (itemQtyMap[item] || 0) + parseNum(r['QTY'] !== undefined ? r['QTY'] : r['QTY Sold']);
   });
   const topItems = Object.entries(itemQtyMap)
     .sort((a, b) => b[1] - a[1]).slice(0, 10);
@@ -809,65 +914,29 @@ function getViewerDashboard(p) {
     values: topItems.map(a => a[1])
   };
 
-  // ── 6. Chart 2: Total Belanja Terbesar per Produk (Donut by Total Sales Price) ──
+  // ── 5. Chart 2: Total Belanja Terbesar per Produk (Donut by TOTAL) ──
   const itemAmtMap = {};
-  sd.forEach(r => {
-    const item = (r['Item Name'] || r['Item Type'] || 'Unknown').toString().trim();
-    itemAmtMap[item] = (itemAmtMap[item] || 0) + parseNum(r['Total Sales Price']);
+  rincianRaw.forEach(r => {
+    const item = (r['NAMA BARANG'] || r['Item Name'] || 'Unknown').toString().trim();
+    itemAmtMap[item] = (itemAmtMap[item] || 0) + parseNum(r['TOTAL'] !== undefined ? r['TOTAL'] : r['Total Sales Price']);
   });
   const chartDonut = {
     labels: Object.keys(itemAmtMap),
     values: Object.values(itemAmtMap)
   };
 
-  // ── 7. Chart 3: Tren Belanja per Transaksi (SO ID → total, sorted by date) ──
-  // Group SD by SO ID + date untuk mendapat tren per transaksi
-  const soTrendMap = {};
-  sd.forEach(r => {
-    const soId = (r['SO ID'] || r['Invoice Num'] || '').toString().trim();
-    const d = tryDate(r['SO Date']);
-    if (!soId) return;
-    if (!soTrendMap[soId]) soTrendMap[soId] = { soId, date: d, total: 0 };
-    soTrendMap[soId].total += parseNum(r['Total Sales Price']);
-  });
-  const soTrendArr = Object.values(soTrendMap)
-    .sort((a, b) => (a.date || 0) - (b.date || 0));
+  // ── 6. Chart 3: Tren Belanja per Transaksi (per RESI, urut sesuai kemunculan di sheet) ──
+  const trendArr = rincian.slice().reverse(); // urut kronologis (lama → baru) untuk chart tren
   const chartTrend = {
-    labels: soTrendArr.map(r => r.soId),
-    values: soTrendArr.map(r => r.total)
+    labels: trendArr.map(rc => rc.resi),
+    values: trendArr.map(rc => rc.amountReceived)
   };
-
-  // ── 8. Rincian Belanja: gabungkan Receipts + SD ──
-  // Untuk tabel rincian: list receipt dengan detail item
-  const rincian = receipts.map(rc => {
-    const soId = (rc['SO ID'] || '').toString().trim();
-    const items = sd.filter(d => (d['SO ID'] || '').toString().trim() === soId);
-    return {
-      trxDate: rc['Trx Date'],
-      trxId: rc['Trx ID'],
-      soId,
-      invoiceNum: rc['Invoice Num'],
-      pmtMode: rc['PMT Mode'],
-      amountReceived: parseNum(rc['Amount Received']),
-      items: items.map(d => ({
-        itemName: d['Item Name'] || '',
-        itemType: d['Item Type'] || '',
-        satuan: d['Item Subcategory'] || d['Item Category'] || '',
-        qty: parseNum(d['QTY Sold']),
-        harga: parseNum(d['Unit Price']),
-        total: parseNum(d['Total Sales Price'])
-      }))
-    };
-  }).sort((a, b) => {
-    const da = tryDate(a.trxDate), db = tryDate(b.trxDate);
-    return (db || 0) - (da || 0); // newest first
-  });
 
   return {
     ok: true,
     member: {
       customerId,
-      name:          mVal('Customer Name'),
+      name:          mVal('Nama') || mVal('Customer Name'),
       contact:       mVal('Customer Contact'),
       email:         mVal('Customer Email'),
       state:         mVal('State'),
@@ -876,19 +945,19 @@ function getViewerDashboard(p) {
       totalSales:    mNum('Total Sales'),
       totalReceipts: mNum('Total Receipts'),
       balance:       mNum('Balance Receivable'),
-      // Kolom khusus koperasi (dari spreadsheet Simpanan Viewer)
+      // Kolom khusus koperasi (dari tab "Sheet1" spreadsheet Simpanan Viewer)
       simpananPokok:  mVal('Simpanan Pokok')  || mNum('Simpanan Pokok'),
       simpananWajib:  mVal('Simpanan Wajib')  || mNum('Simpanan Wajib'),
       nilaiSHU:       mVal('Nilai SHU')       || mNum('Nilai SHU'),
       jabatan:        mVal('Jabatan'),
       nik:            mVal('NIK'),
-      tglMasuk:       mVal('Tgl Masuk Anggota') || mVal('Tgl Masuk') || mVal('Join Date'),
+      tglMasuk:       mVal('Tanggal Masuk Anggota') || mVal('Tgl Masuk Anggota') || mVal('Tgl Masuk') || mVal('Join Date'),
     },
     kpi: {
       belanjaMonth,
       totalBelanja,
-      totalTransaksi: receipts.length,
-      totalItem: sd.reduce((s, r) => s + parseNum(r['QTY Sold']), 0)
+      totalTransaksi: rincian.length,
+      totalItem
     },
     charts: { topItems: chartTopItems, donut: chartDonut, trend: chartTrend },
     rincian
