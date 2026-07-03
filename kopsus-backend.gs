@@ -359,6 +359,9 @@ function getViewerSimpananRow(customerId) {
   // Sumber utama: tab "Sheet1" pada spreadsheet Simpanan Viewer.
   // Header aktual: No, Code Pelanggan, NIK, Nama, Jabatan, Hit SHU,
   // Tanggal Masuk Anggota, Simpanan Pokok, Simpanan Wajib, Belanja Bulan ini, Nilai SHU
+  //
+  // PENTING: "Linked Customer ID" pada akun user ternyata berisi NIK (angka), bukan
+  // "Code Pelanggan" (string acak). Maka kolom NIK dicoba dicocokkan lebih dulu.
   let sh = vss.getSheetByName('Sheet1');
   if (!sh) {
     // Fallback ke skema lama (named range / sheet "Customers"), untuk kompatibilitas.
@@ -366,35 +369,37 @@ function getViewerSimpananRow(customerId) {
       const rng = vss.getRangeByName(RNG_CUSTOMERS);
       if (rng) {
         const vals = rng.getValues();
-        return matchSimpananRow_(vals, customerId, ['Customer ID', 'Code Pelanggan']);
+        return matchSimpananRow_(vals, customerId, ['NIK', 'Customer ID', 'Code Pelanggan']);
       }
     } catch (e) { /* ignore */ }
     const plain = vss.getSheetByName(SH_CUSTOMERS);
     if (!plain) return {};
-    return matchSimpananRow_(plain.getDataRange().getValues(), customerId, ['Customer ID', 'Code Pelanggan']);
+    return matchSimpananRow_(plain.getDataRange().getValues(), customerId, ['NIK', 'Customer ID', 'Code Pelanggan']);
   }
 
   const lastRow = sh.getLastRow();
   const lastCol = sh.getLastColumn();
   if (lastRow < 1) return {};
   const vals = sh.getRange(1, 1, lastRow, lastCol).getValues();
-  return matchSimpananRow_(vals, customerId, ['Code Pelanggan', 'Customer ID']);
+  return matchSimpananRow_(vals, customerId, ['NIK', 'Code Pelanggan', 'Customer ID']);
 }
 
 // Helper: cocokkan baris berdasarkan salah satu dari beberapa kemungkinan nama kolom ID.
+// Berbeda dari versi sebelumnya: SEMUA kolom kandidat yang ada di header dicoba dicocokkan
+// (bukan cuma kolom kandidat pertama yang ditemukan), supaya ID dengan format berbeda
+// (mis. NIK numerik vs Code Pelanggan string acak) tetap bisa match.
 function matchSimpananRow_(vals, customerId, idColCandidates) {
   if (!vals || vals.length < 1) return {};
   const headers = vals[0].map(h => String(h).trim());
-  let iId = -1;
-  for (const cand of idColCandidates) {
-    iId = headers.indexOf(cand);
-    if (iId !== -1) break;
-  }
-  if (iId === -1) return {};
+  const idCols = idColCandidates
+    .map(cand => headers.indexOf(cand))
+    .filter(idx => idx !== -1);
+  if (!idCols.length) return {};
   const target = normId(customerId);
   for (let i = 1; i < vals.length; i++) {
     const row = vals[i];
-    if (normId(row[iId]) !== target) continue;
+    const isMatch = idCols.some(idx => normId(row[idx]) === target);
+    if (!isMatch) continue;
     const obj = {};
     headers.forEach((h, j) => { obj[h] = row[j] !== undefined ? row[j] : ''; });
     return obj;
@@ -406,8 +411,14 @@ function matchSimpananRow_(vals, customerId, idColCandidates) {
  * Ambil semua baris item-belanja milik seorang anggota dari tab "Rincian"
  * pada spreadsheet Simpanan Viewer, lalu group per RESI (1 RESI = 1 transaksi/nota,
  * bisa berisi banyak baris NAMA BARANG).
- * Header aktual tab Rincian: CODE, Code Pelanggan, NO., RESI, KODE PELANGGAN, COB,
- * NAMA PELANGGAN, NAMA BARANG, ALAMAT PELANGGAN, SATUAN, QTY, HARGA, TOTAL, JUMLAH
+ * Header tab Rincian: CODE, Code Pelanggan, NO., RESI, KODE PELANGGAN, COB,
+ * NAMA PELANGGAN, NAMA BARANG, ALAMAT PELANGGAN, SATUAN, QTY, HARGA, TOTAL, JUMLAH, NIK
+ *
+ * CATATAN: kolom "NIK" di tab Rincian ternyata berisi data yang tidak konsisten dengan
+ * NIK asli (bukan angka, formatnya beda dari kolom NIK di Sheet1) — jadi TIDAK dipakai
+ * sebagai kunci pencocokan. Kunci yang dipakai adalah "Code Pelanggan", yang konsisten
+ * antara Sheet1 dan Rincian. customerId yang dikirim ke fungsi ini boleh berupa NIK atau
+ * Code Pelanggan — keduanya dicoba.
  */
 function getViewerRincianRows(customerId) {
   let vss;
@@ -421,14 +432,17 @@ function getViewerRincianRows(customerId) {
 
   const vals = sh.getRange(1, 1, lastRow, lastCol).getValues();
   const headers = vals[0].map(h => String(h).trim());
-  const iCode = headers.indexOf('Code Pelanggan');
-  if (iCode === -1) return [];
+  const idCols = ['Code Pelanggan', 'KODE PELANGGAN']
+    .map(cand => headers.indexOf(cand))
+    .filter(idx => idx !== -1);
+  if (!idCols.length) return [];
   const target = normId(customerId);
 
   const rows = [];
   for (let i = 1; i < vals.length; i++) {
     const row = vals[i];
-    if (normId(row[iCode]) !== target) continue;
+    const isMatch = idCols.some(idx => normId(row[idx]) === target);
+    if (!isMatch) continue;
     const obj = {};
     headers.forEach((h, j) => { obj[h] = row[j] !== undefined ? row[j] : ''; });
     rows.push(obj);
@@ -555,7 +569,34 @@ function refreshNamedRange(ss, sheetName) {
 function parseNum(v) {
   if (v === '' || v === null || v === undefined) return 0;
   if (typeof v === 'number') return v;
-  const s = String(v).trim().replace(/\./g, '').replace(',', '.');
+  let s = String(v).trim();
+  if (!s) return 0;
+
+  // Buang prefix mata uang ("Rp", "Rp.", "IDR", dll) dan semua spasi
+  s = s.replace(/Rp\.?/gi, '').replace(/IDR/gi, '').replace(/\s/g, '');
+  if (!s) return 0;
+
+  const hasComma = s.indexOf(',') !== -1;
+  const hasDot   = s.indexOf('.') !== -1;
+
+  if (hasComma && hasDot) {
+    // Simbol yang muncul TERAKHIR dianggap sebagai desimal.
+    if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
+      s = s.replace(/\./g, '').replace(',', '.'); // titik=ribuan, koma=desimal
+    } else {
+      s = s.replace(/,/g, ''); // koma=ribuan, titik=desimal (dibiarkan)
+    }
+  } else if (hasComma) {
+    const parts = s.split(',');
+    const looksLikeThousands = parts.length > 1 && parts[parts.length - 1].length === 3 && parts.slice(1).every(p => p.length === 3);
+    s = looksLikeThousands ? s.replace(/,/g, '') : s.replace(',', '.');
+  } else if (hasDot) {
+    const parts = s.split('.');
+    const looksLikeThousands = parts.length > 1 && parts[parts.length - 1].length === 3 && parts.slice(1).every(p => p.length === 3);
+    if (looksLikeThousands) s = s.replace(/\./g, '');
+    // kalau bukan pola ribuan (mis. "12.5"), biarkan titik sebagai desimal
+  }
+
   const n = parseFloat(s);
   return isNaN(n) ? 0 : n;
 }
@@ -819,8 +860,12 @@ function getViewerDashboard(p) {
   const mNum = (k) => parseNum(mVal(k));
 
   // ── 2. Riwayat belanja anggota ini dari tab "Rincian" (spreadsheet Simpanan Viewer) ──
+  // Kolom "NIK" di tab Rincian isinya tidak konsisten (bukan NIK asli), jadi dijembatani
+  // lewat "Code Pelanggan": ambil Code Pelanggan dari baris Sheet1 yang sudah ketemu via
+  // NIK, baru itu dipakai untuk cari baris-baris di Rincian.
+  const codePelanggan = (simpanan['Code Pelanggan'] || '').toString().trim() || customerId;
   let rincianRaw = [];
-  try { rincianRaw = getViewerRincianRows(customerId); } catch (e) { /* tolerate */ }
+  try { rincianRaw = getViewerRincianRows(codePelanggan); } catch (e) { /* tolerate */ }
   let rincian = groupRincianByResi_(rincianRaw);
 
   // Fallback: kalau tidak ada apa-apa di tab Rincian, coba skema lama (SalesDetails+Receipts
