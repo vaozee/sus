@@ -205,6 +205,7 @@ tbody td{padding:10px 12px;font-size:.82rem;color:var(--tl);white-space:nowrap;}
       <div class="ni" data-p="payments"><i class="fas fa-credit-card"></i><span>Payments</span></div>
       <div class="ni" data-p="reports"><i class="fas fa-chart-pie"></i><span>Reports</span></div>
       <div class="ni" data-p="settings" id="navSettings"><i class="fas fa-cogs"></i><span>Settings</span></div>
+      <div class="ni" data-p="changepwd"><i class="fas fa-key"></i><span>Ganti Password</span></div>
       <div class="ni" id="logoutBtn"><i class="fas fa-sign-out-alt"></i><span>Logout</span></div>
     </nav>
   </div>
@@ -597,6 +598,61 @@ document.getElementById('logoutBtn').addEventListener('click',async()=>{
 updateBannerMode();
 
 // ══════════════════════════════════════════════════
+//  GANTI PASSWORD SENDIRI (semua role)
+// ══════════════════════════════════════════════════
+async function pgChangePassword(){
+  document.getElementById('pageContent').innerHTML=`
+<div class="ph"><h1>Ganti Password</h1><p>Ubah password akun Anda sendiri</p></div>
+<div class="tc" style="max-width:420px">
+  <div class="fg"><label>Password Saat Ini</label><input type="password" class="fc" id="cpwOld" autocomplete="current-password"></div>
+  <div class="fg"><label>Password Baru</label><input type="password" class="fc" id="cpwNew" autocomplete="new-password"></div>
+  <div class="fg"><label>Konfirmasi Password Baru</label><input type="password" class="fc" id="cpwConfirm" autocomplete="new-password"></div>
+  <button class="btn btn-pr" style="width:100%" id="cpwBtn"><i class="fas fa-key"></i> Ganti Password</button>
+</div>`;
+  document.getElementById('cpwBtn').addEventListener('click', doChangeMyPassword);
+  ['cpwOld','cpwNew','cpwConfirm'].forEach(id=>{
+    document.getElementById(id).addEventListener('keypress', e=>{ if(e.key==='Enter') doChangeMyPassword(); });
+  });
+}
+
+async function doChangeMyPassword(){
+  const oldPwd     = document.getElementById('cpwOld').value;
+  const newPwd     = document.getElementById('cpwNew').value;
+  const confirmPwd = document.getElementById('cpwConfirm').value;
+
+  if(!oldPwd || !newPwd || !confirmPwd){ toast('Semua field wajib diisi.', true); return; }
+  if(newPwd.length < 4){ toast('Password baru minimal 4 karakter.', true); return; }
+  if(newPwd !== confirmPwd){ toast('Konfirmasi password baru tidak cocok.', true); return; }
+
+  const btn = document.getElementById('cpwBtn');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...';
+
+  if(USE_BACKEND){
+    const res = await api('changeMyPassword', { currentPassword: oldPwd, newPassword: newPwd });
+    if(!res || !res.ok){
+      toast(res ? res.error : 'Gagal terhubung ke backend.', true);
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-key"></i> Ganti Password';
+      return;
+    }
+  } else {
+    // Demo mode: cek & update di ACCOUNTS array (sesi browser saja)
+    const acct = ACCOUNTS.find(a=>a.username===(CU && CU.username));
+    if(!acct || acct.password !== oldPwd){
+      toast('Password saat ini salah.', true);
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-key"></i> Ganti Password';
+      return;
+    }
+    acct.password = newPwd;
+  }
+
+  toast('Password berhasil diganti!');
+  document.getElementById('cpwOld').value = '';
+  document.getElementById('cpwNew').value = '';
+  document.getElementById('cpwConfirm').value = '';
+  btn.disabled = false; btn.innerHTML = '<i class="fas fa-key"></i> Ganti Password';
+}
+
+// ══════════════════════════════════════════════════
 //  NAVIGATION
 // ══════════════════════════════════════════════════
 document.getElementById('nav').addEventListener('click',e=>{
@@ -755,7 +811,8 @@ function goto(p){
   document.querySelectorAll('.ni[data-p]').forEach(n=>n.classList.toggle('active',n.dataset.p===p));
   destroyCharts();
   const pages={dashboard:pgDashboard,inventory:pgInventory,suppliers:pgSuppliers,customers:pgCustomers,
-    purchases:pgPurchases,sales:pgSales,receipts:pgReceipts,payments:pgPayments,reports:pgReports,settings:pgSettings};
+    purchases:pgPurchases,sales:pgSales,receipts:pgReceipts,payments:pgPayments,reports:pgReports,settings:pgSettings,
+    changepwd:pgChangePassword};
   document.getElementById('pageContent').innerHTML='';
   if(pages[p]){
     const result=pages[p]();
