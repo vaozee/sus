@@ -2,8 +2,13 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <title>KopSUS App</title>
+<meta name="theme-color" content="#0a1f12">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="KopSUS">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Poppins:wght@400;500;600&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
@@ -155,6 +160,100 @@ tbody td{padding:10px 12px;font-size:.82rem;color:var(--tl);white-space:nowrap;}
   .stb{display:none;}.fr{grid-template-columns:1fr;}
   .content{padding:12px 14px 20px;}
 }
+
+/* ══════════════════════════════════════════════════
+   ANDROID APP SHELL — mobile conversion overrides
+   ══════════════════════════════════════════════════ */
+:root{--safe-t:env(safe-area-inset-top,0px);--safe-b:env(safe-area-inset-bottom,0px);
+  --safe-l:env(safe-area-inset-left,0px);--safe-r:env(safe-area-inset-right,0px);
+  --header-h:56px;--bn-h:64px;}
+*{-webkit-tap-highlight-color:transparent;}
+html,body{overscroll-behavior-y:contain;}
+body{font-family:'Poppins','Roboto',sans-serif;}
+.fc,.fg2 input,.fg2 select,.fg2 textarea,table,tbody td,thead th{font-family:'Poppins','Roboto',sans-serif;}
+
+/* old desktop collapse-toggle no longer used */
+.stb{display:none !important;}
+
+/* SIDEBAR -> OFF-CANVAS DRAWER */
+.sidebar{width:280px !important;transform:translateX(-100%);transition:transform .3s cubic-bezier(.4,0,.2,1);
+  border-right:none;box-shadow:0 0 30px rgba(0,0,0,.5);padding-top:var(--safe-t);}
+.sidebar.col{width:280px;}
+.sidebar.col~.mc{margin-left:0;}
+.sidebar.col .at span,.sidebar.col .ni span,.sidebar.col .sui div{display:block;}
+.sidebar.col .at{padding:22px 18px;justify-content:flex-start;}
+.sidebar.col .ni{justify-content:flex-start;padding:11px 18px;}
+.sidebar.col .ni i{margin-right:10px;font-size:1rem;}
+.sidebar.open{transform:translateX(0);}
+.drawer-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:999;
+  opacity:0;transition:opacity .3s ease;backdrop-filter:blur(1px);}
+.drawer-overlay.show{display:block;opacity:1;}
+
+/* MAIN CONTENT: full width, no sidebar push */
+.mc,.sidebar.col~.mc{margin-left:0 !important;padding-bottom:calc(var(--bn-h) + var(--safe-b) + 10px);}
+.content{padding:14px 14px 24px;max-width:640px;margin:0 auto;}
+
+/* MOBILE APP HEADER */
+.app-header{position:sticky;top:0;z-index:900;display:flex;align-items:center;gap:12px;
+  padding:calc(10px + var(--safe-t)) 16px 10px;background:linear-gradient(180deg,var(--sb),var(--sb2));
+  border-bottom:1px solid var(--bc);box-shadow:0 2px 12px rgba(0,0,0,.3);}
+.app-header .hamburger{background:none;border:none;color:var(--sc);font-size:1.25rem;cursor:pointer;
+  width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;transition:.2s;flex-shrink:0;}
+.app-header .hamburger:active{background:var(--pr2);}
+.app-header-title{flex:1;font-family:'Poppins',sans-serif;font-weight:600;color:var(--sc);font-size:1.05rem;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.app-header-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--pr),var(--pr3));
+  color:#0a1f12;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;flex-shrink:0;}
+
+/* BOTTOM NAVIGATION */
+.bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:950;display:flex;
+  background:linear-gradient(180deg,var(--sb2),var(--sb));border-top:1px solid var(--bc);
+  padding:8px 6px calc(8px + var(--safe-b));box-shadow:0 -4px 20px rgba(0,0,0,.4);
+  border-radius:20px 20px 0 0;}
+.bottom-nav .bn-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;padding:6px 2px;color:var(--tl);cursor:pointer;border-radius:14px;transition:.2s;
+  font-family:'Poppins',sans-serif;border-left:none !important;}
+.bottom-nav .bn-item i{width:auto;margin-right:0;font-size:1.15rem;}
+.bottom-nav .bn-item span{font-size:.66rem;font-weight:500;overflow:visible;text-overflow:clip;}
+.bottom-nav .bn-item:active{background:var(--pr2);}
+.bottom-nav .bn-item.active{color:var(--sc);background:linear-gradient(180deg,var(--na1),var(--na2));}
+
+/* CARDS: full-width, radius 20px, Android elevation feel */
+.kpi,.cc,.tc,.mb,.lc,.dt-card{border-radius:20px;}
+.kpi{padding:16px;}
+.kpi-grid{gap:12px;}
+.btn{border-radius:14px;padding:10px 16px;min-height:40px;}
+.btn-sm{border-radius:10px;min-height:30px;}
+.badge{border-radius:14px;}
+.fc,.fg2 input,.fg2 select,.fg2 textarea,.si{border-radius:14px;}
+.lb{border-radius:14px;min-height:46px;}
+.lc{box-shadow:0 12px 40px rgba(0,0,0,.55);}
+
+/* MODAL -> ANDROID BOTTOM SHEET */
+.mo{align-items:flex-end;padding:0;}
+.mb{width:100%;max-width:100%;border-radius:22px 22px 0 0;max-height:88vh;
+  padding:22px 18px calc(22px + var(--safe-b));animation:sheetUp .28s cubic-bezier(.4,0,.2,1);}
+@keyframes sheetUp{from{transform:translateY(100%);}to{transform:translateY(0);}}
+
+/* TOAST: sit above bottom nav */
+.toast{bottom:calc(var(--bn-h) + var(--safe-b) + 14px);left:16px;right:16px;max-width:none;
+  border-radius:14px;text-align:center;}
+
+/* PAGE TRANSITION */
+.content.page-enter{animation:pageFade .32s cubic-bezier(.4,0,.2,1);}
+@keyframes pageFade{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+
+/* LOGIN PAGE as mobile card */
+#loginPage{padding:24px 18px;padding-top:calc(24px + var(--safe-t));padding-bottom:calc(24px + var(--safe-b));}
+.lc{border-radius:24px;}
+
+@media(min-width:640px){
+  body{background:radial-gradient(circle at 50% 0%,#0d2818,#050c08 70%);}
+  #appPage{max-width:480px;margin:0 auto;position:relative;box-shadow:0 0 60px rgba(0,0,0,.6);min-height:100vh;}
+  .bottom-nav{width:480px;left:50%;right:auto;margin-left:-240px;}
+  .drawer-overlay{width:480px;left:50%;right:auto;margin-left:-240px;}
+  .sidebar{left:50%;margin-left:-240px;}
+}
 </style>
 </head>
 <body>
@@ -210,14 +309,29 @@ tbody td{padding:10px 12px;font-size:.82rem;color:var(--tl);white-space:nowrap;}
     </nav>
   </div>
 
+  <div class="drawer-overlay" id="drawerOverlay" onclick="toggleSidebar()"></div>
+
   <div class="stb" id="stb" onclick="toggleSidebar()">
     <i class="fas fa-chevron-left" id="stbIcon"></i>
   </div>
 
   <div class="mc" id="mc">
+    <header class="app-header">
+      <button class="hamburger" onclick="toggleSidebar()" aria-label="Menu"><i class="fas fa-bars"></i></button>
+      <div class="app-header-title" id="headerPageTitle">Dashboard</div>
+      <div class="app-header-avatar" id="headerAvatar">A</div>
+    </header>
     <div class="dev-banner" id="devBanner">⚠️ DEMO MODE — belum terhubung ke Google Sheets. Set Backend URL di Settings.</div>
     <div class="content" id="pageContent"></div>
   </div>
+
+  <nav class="bottom-nav" id="bottomNav">
+    <div class="bn-item ni active" data-p="dashboard"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></div>
+    <div class="bn-item ni" data-p="inventory"><i class="fas fa-boxes"></i><span>Inventory</span></div>
+    <div class="bn-item ni" data-p="sales"><i class="fas fa-chart-line"></i><span>Sales</span></div>
+    <div class="bn-item ni" data-p="reports"><i class="fas fa-chart-pie"></i><span>Reports</span></div>
+    <div class="bn-item" id="bnMore" onclick="toggleSidebar()"><i class="fas fa-bars"></i><span>Menu</span></div>
+  </nav>
 </div>
 
 <!-- MODAL -->
@@ -564,6 +678,8 @@ async function doLogin(){
   document.getElementById('appPage').style.display='block';
   document.getElementById('sbName').textContent=user.name||user.username||'User';
   document.getElementById('sbRole').textContent=user.role||'';
+  const av=document.getElementById('headerAvatar');
+  if(av) av.textContent=(user.name||user.username||'U').trim().charAt(0).toUpperCase();
 
   // Nav visibility by role
   const isViewer = user.role==='Viewer';
@@ -581,7 +697,37 @@ async function doLogin(){
   });
 
   btn.disabled=false; btn.innerHTML='<i class="fas fa-sign-in-alt"></i> Masuk';
+  updateBottomNav();
   goto('dashboard');
+}
+
+// Bottom nav auto-fills its 4 quick-access slots with whichever pages
+// are actually visible for the current role, so no empty slots appear.
+const BN_ICONS={dashboard:'fa-tachometer-alt',inventory:'fa-boxes',suppliers:'fa-truck-loading',
+  customers:'fa-user-friends',purchases:'fa-file-invoice-dollar',sales:'fa-chart-line',
+  receipts:'fa-receipt',payments:'fa-credit-card',reports:'fa-chart-pie',settings:'fa-cogs',
+  changepwd:'fa-key'};
+const BN_LABELS={dashboard:'Dashboard',inventory:'Inventory',suppliers:'Suppliers',customers:'Customers',
+  purchases:'Purchases',sales:'Sales',receipts:'Receipts',payments:'Payments',reports:'Reports',
+  settings:'Settings',changepwd:'Ganti PW'};
+const BN_PRIORITY=['dashboard','inventory','sales','reports','receipts','purchases','customers','suppliers','payments','changepwd','settings'];
+function updateBottomNav(){
+  const visible=BN_PRIORITY.filter(p=>{
+    const el=document.querySelector('.ni[data-p="'+p+'"]');
+    return el && el.style.display!=='none';
+  });
+  const slots=document.querySelectorAll('#bottomNav .bn-item[data-p]');
+  slots.forEach((slot,i)=>{
+    const p=visible[i];
+    if(p){
+      slot.dataset.p=p; slot.style.display='';
+      slot.querySelector('i').className='fas '+BN_ICONS[p];
+      slot.querySelector('span').textContent=BN_LABELS[p];
+    } else {
+      slot.style.display='none';
+    }
+  });
+  document.querySelectorAll('.ni[data-p]').forEach(n=>n.classList.toggle('active',n.dataset.p===CP));
 }
 
 document.getElementById('lp').addEventListener('keypress',e=>{if(e.key==='Enter')doLogin();});
@@ -657,18 +803,37 @@ async function doChangeMyPassword(){
 // ══════════════════════════════════════════════════
 document.getElementById('nav').addEventListener('click',e=>{
   const ni=e.target.closest('.ni[data-p]');
+  if(ni){ goto(ni.dataset.p); closeDrawer(); }
+});
+document.getElementById('bottomNav').addEventListener('click',e=>{
+  const ni=e.target.closest('.ni[data-p]');
   if(ni) goto(ni.dataset.p);
 });
 function destroyCharts(){charts.forEach(c=>{try{c.destroy();}catch(e){}});charts=[];}
 
-// SIDEBAR TOGGLE
+// SIDEBAR -> OFF-CANVAS DRAWER (mobile app style)
 function toggleSidebar(){
-  const sb=document.getElementById('sidebar'),mc=document.getElementById('mc'),
-        ico=document.getElementById('stbIcon'),btn=document.getElementById('stb');
-  const col=sb.classList.toggle('col');
-  mc.style.marginLeft=col?'72px':'260px';
-  btn.style.left=col?'58px':'246px';
-  ico.style.transform=col?'rotate(180deg)':'';
+  const sb=document.getElementById('sidebar');
+  sb.classList.contains('open')?closeDrawer():openDrawer();
+}
+function openDrawer(){
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('drawerOverlay').classList.add('show');
+}
+function closeDrawer(){
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('drawerOverlay').classList.remove('show');
+}
+
+// PAGE TITLE for mobile header + trigger enter animation
+const PAGE_TITLES={dashboard:'Dashboard',inventory:'Inventory',suppliers:'Suppliers',customers:'Customers',
+  purchases:'Purchases',sales:'Sales',receipts:'Receipts',payments:'Payments',reports:'Reports',
+  settings:'Settings',changepwd:'Ganti Password'};
+function updateHeaderForPage(p){
+  const h=document.getElementById('headerPageTitle');
+  if(h) h.textContent=PAGE_TITLES[p]||'KopSUS App';
+  const el=document.getElementById('pageContent');
+  if(el){ el.classList.remove('page-enter'); void el.offsetWidth; el.classList.add('page-enter'); }
 }
 
 // ══════════════════════════════════════════════════
@@ -809,6 +974,7 @@ window.switchTab=function(btn,tabId){
 function goto(p){
   CP=p;
   document.querySelectorAll('.ni[data-p]').forEach(n=>n.classList.toggle('active',n.dataset.p===p));
+  updateHeaderForPage(p);
   destroyCharts();
   const pages={dashboard:pgDashboard,inventory:pgInventory,suppliers:pgSuppliers,customers:pgCustomers,
     purchases:pgPurchases,sales:pgSales,receipts:pgReceipts,payments:pgPayments,reports:pgReports,settings:pgSettings,
