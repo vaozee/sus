@@ -204,6 +204,8 @@ body{font-family:'Poppins','Roboto',sans-serif;}
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .app-header-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--pr),var(--pr3));
   color:#0a1f12;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;flex-shrink:0;}
+.conn-dot{display:none;width:8px;height:8px;border-radius:50%;background:#22c55e;margin-left:7px;
+  box-shadow:0 0 6px rgba(34,197,94,.85);vertical-align:middle;flex-shrink:0;}
 
 /* BOTTOM NAVIGATION */
 .bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:950;display:flex;
@@ -289,7 +291,9 @@ body{font-family:'Poppins','Roboto',sans-serif;}
     </div>
     <div class="sui">
       <div>
-        <div class="sun" id="sbName">Administrator</div>
+        <div class="sun" style="display:flex;align-items:center">
+          <span id="sbName">Administrator</span><span class="conn-dot" id="connDot" title="Terhubung ke Google Sheets"></span>
+        </div>
         <div class="sur" id="sbRole">Admin</div>
       </div>
     </div>
@@ -321,7 +325,6 @@ body{font-family:'Poppins','Roboto',sans-serif;}
       <div class="app-header-title" id="headerPageTitle">Dashboard</div>
       <div class="app-header-avatar" id="headerAvatar">A</div>
     </header>
-    <div class="dev-banner" id="devBanner">⚠️ DEMO MODE — belum terhubung ke Google Sheets. Set Backend URL di Settings.</div>
     <div class="content" id="pageContent"></div>
   </div>
 
@@ -494,22 +497,18 @@ function saveBackendUrl(url){
 }
 
 function updateBannerMode(){
-  const banner = document.getElementById('devBanner');
+  const dot    = document.getElementById('connDot');
   const note   = document.getElementById('loginNote');
   const foot   = document.getElementById('loginFoot');
   if(USE_BACKEND){
-    if(banner) banner.innerHTML='✅ Terhubung ke Google Sheets — '+BACKEND_URL.substring(0,60)+'...';
-    if(banner) banner.style.background='var(--pr2)';
-    if(banner) banner.style.color='var(--pr)';
+    if(dot) dot.style.display='inline-block';
     if(note) note.innerHTML='✅ Backend URL sudah dikonfigurasi';
     if(note) note.style.background='rgba(34,197,94,.1)';
     if(note) note.style.borderColor='rgba(34,197,94,.3)';
     if(note) note.style.color='var(--pr)';
     if(foot) foot.textContent='Login dengan akun di Google Sheets Anda.';
   } else {
-    if(banner) banner.innerHTML='⚠️ DEMO MODE — belum terhubung ke Google Sheets. Set Backend URL di Settings.';
-    if(banner) banner.style.background='';
-    if(banner) banner.style.color='';
+    if(dot) dot.style.display='none';
     if(note) note.innerHTML='⚠️ Demo Mode — belum ada Backend URL';
     if(note) note.style.background='';
     if(note) note.style.borderColor='';
@@ -574,7 +573,8 @@ let _cache = {
   inventory: null, suppliers: null, customers: null,
   purchaseOrders: null, purchaseDetails: null,
   salesOrders: null, salesDetails: null,
-  receipts: null, payments: null, dimensions: null, users: null
+  receipts: null, payments: null, dimensions: null, users: null,
+  viewerData: null
 };
 
 // Hapus semua cache saat pindah halaman atau setelah mutasi
@@ -1171,17 +1171,17 @@ async function pgDashboard(){
 }
 
 // ══════════════════════════════════════════════════
-//  VIEWER DASHBOARD — dashboard anggota koperasi
+//  VIEWER DATA — loader bersama utk Dashboard/Sales/Receipts anggota
 // ══════════════════════════════════════════════════
-async function pgViewerDashboard(){
-  const pc=document.getElementById('pageContent');
-  pc.innerHTML=`
-<div class="ph"><h1>Dashboard Anggota</h1><p>Informasi belanja & keanggotaan Anda</p></div>
-<div style="display:flex;align-items:center;justify-content:center;padding:60px;gap:12px;color:var(--tl)">
-  <i class="fas fa-spinner fa-spin" style="font-size:1.5rem;color:var(--pr)"></i> Memuat data anggota...
-</div>`;
+function fmtRpK(n){
+  const v=parseFloat(n)||0;
+  return 'Rp '+v.toLocaleString('id-ID');
+}
 
-  let member={}, kpi={}, charts={}, rincian=[];
+async function loadViewerData(){
+  if(_cache.viewerData) return _cache.viewerData;
+
+  let member={}, kpi={}, charts={}, rincian={}, error=null;
 
   if(USE_BACKEND){
     const res=await api('getViewerDashboard',{token:SESSION_TOKEN});
@@ -1189,9 +1189,7 @@ async function pgViewerDashboard(){
       member=res.member||{}; kpi=res.kpi||{};
       charts=res.charts||{}; rincian=res.rincian||[];
     } else {
-      pc.innerHTML=`<div class="tc"><p style="color:#f87171;padding:12px">
-        ${res?.error||'Gagal memuat data. Pastikan backend URL sudah dikonfigurasi di Settings.'}</p></div>`;
-      return;
+      error=res?.error||'Gagal memuat data. Pastikan backend URL sudah dikonfigurasi di Settings.';
     }
   } else {
     // Demo mode: simulasi data dari CUSTOMERS + SALES_DETAILS + RECEIPTS
@@ -1222,17 +1220,34 @@ async function pgViewerDashboard(){
     }));
   }
 
-  const fmtK=(n)=>{
-    const v=parseFloat(n)||0;
-    return 'Rp '+v.toLocaleString('id-ID');
-  };
+  const data={member,kpi,charts,rincian,error};
+  if(!error) _cache.viewerData=data;
+  return data;
+}
 
-  // ── KPI Cards (row horizontal atas) ──
+// ══════════════════════════════════════════════════
+//  VIEWER DASHBOARD — ringkas, hanya Simpanan s.d. NIK
+// ══════════════════════════════════════════════════
+async function pgViewerDashboard(){
+  const pc=document.getElementById('pageContent');
+  pc.innerHTML=`
+<div class="ph"><h1>Dashboard Anggota</h1><p>Informasi keanggotaan Anda</p></div>
+<div style="display:flex;align-items:center;justify-content:center;padding:60px;gap:12px;color:var(--tl)">
+  <i class="fas fa-spinner fa-spin" style="font-size:1.5rem;color:var(--pr)"></i> Memuat data anggota...
+</div>`;
+
+  const {member,kpi,error}=await loadViewerData();
+  if(error){
+    pc.innerHTML=`<div class="tc"><p style="color:#f87171;padding:12px">${error}</p></div>`;
+    return;
+  }
+
+  // ── KPI Cards: Simpanan Pokok s.d. NIK saja ──
   const kpiCards=[
-    {icon:'fas fa-piggy-bank',label:'Simpanan Pokok',val:typeof member.simpananPokok==='number'?fmtK(member.simpananPokok):member.simpananPokok||'–'},
-    {icon:'fas fa-money-bill-wave',label:'Simpanan Wajib',val:typeof member.simpananWajib==='number'?fmtK(member.simpananWajib):member.simpananWajib||'–'},
-    {icon:'fas fa-chart-pie',label:'Nilai SHU',val:typeof member.nilaiSHU==='number'?fmtK(member.nilaiSHU):member.nilaiSHU||'–'},
-    {icon:'fas fa-shopping-bag',label:'Belanja Bulan Ini',val:fmtK(kpi.belanjaMonth)},
+    {icon:'fas fa-piggy-bank',label:'Simpanan Pokok',val:typeof member.simpananPokok==='number'?fmtRpK(member.simpananPokok):member.simpananPokok||'–'},
+    {icon:'fas fa-money-bill-wave',label:'Simpanan Wajib',val:typeof member.simpananWajib==='number'?fmtRpK(member.simpananWajib):member.simpananWajib||'–'},
+    {icon:'fas fa-chart-pie',label:'Nilai SHU',val:typeof member.nilaiSHU==='number'?fmtRpK(member.nilaiSHU):member.nilaiSHU||'–'},
+    {icon:'fas fa-shopping-bag',label:'Belanja Bulan Ini',val:fmtRpK(kpi.belanjaMonth)},
     {icon:'fas fa-calendar-alt',label:'Tgl Masuk Anggota',val:member.tglMasuk||'–'},
     {icon:'fas fa-id-badge',label:'Jabatan',val:member.jabatan||'–'},
     {icon:'fas fa-id-card',label:'NIK',val:member.nik||'–'},
@@ -1245,37 +1260,45 @@ async function pgViewerDashboard(){
 </div>
 
 <!-- KPI Strip -->
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px">
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">
 ${kpiCards.map(c=>`
   <div class="kpi">
     <h3><i class="${c.icon}"></i>&nbsp;${c.label}</h3>
     <h2 style="font-size:1rem;margin-top:6px">${c.val}</h2>
   </div>`).join('')}
-</div>
+</div>`;
+}
 
-<!-- Charts row -->
-<div class="cr" style="margin-bottom:20px">
-  <div class="cc" style="flex:1.2">
+// ══════════════════════════════════════════════════
+//  VIEWER SALES — Produk Tersering Dibeli & Total Belanja Terbesar
+// ══════════════════════════════════════════════════
+async function pgViewerSales(){
+  const pc=document.getElementById('pageContent');
+  pc.innerHTML=`
+<div class="ph"><h1>Sales</h1><p>Produk sering dibeli & total belanja terbesar Anda</p></div>
+<div style="display:flex;align-items:center;justify-content:center;padding:60px;gap:12px;color:var(--tl)">
+  <i class="fas fa-spinner fa-spin" style="font-size:1.5rem;color:var(--pr)"></i> Memuat data...
+</div>`;
+
+  const {charts,error}=await loadViewerData();
+  if(error){
+    pc.innerHTML=`<div class="tc"><p style="color:#f87171;padding:12px">${error}</p></div>`;
+    return;
+  }
+
+  pc.innerHTML=`
+<div class="ph"><h1>Sales</h1><p>Produk sering dibeli & total belanja terbesar Anda</p></div>
+<div class="cr" style="flex-direction:column">
+  <div class="cc">
     <h3><i class="fas fa-sort-amount-down" style="color:var(--pr)"></i> Produk Tersering Dibeli</h3>
     <div id="vC1" style="height:300px"></div>
   </div>
-  <div class="cc" style="flex:1">
+  <div class="cc">
     <h3><i class="fas fa-coins" style="color:var(--sc)"></i> Total Belanja Terbesar</h3>
     <div id="vC2" style="height:300px"></div>
   </div>
-  <div class="cc" style="flex:1.4">
-    <h3><i class="fas fa-chart-area" style="color:var(--pr)"></i> Tren Belanja per Transaksi</h3>
-    <div id="vC3" style="height:300px"></div>
-  </div>
-</div>
-
-<!-- Rincian Belanja -->
-<div class="tc">
-  <h3 style="margin-bottom:14px"><i class="fas fa-receipt" style="color:var(--sc)"></i> Rincian Belanja</h3>
-  <div id="vRincian"></div>
 </div>`;
 
-  // ── Render Charts ──
   const COLORS=['#22c55e','#d4af37','#60a5fa','#f87171','#a78bfa','#34d399','#fb923c','#e879f9','#38bdf8','#f472b6'];
   const axStyle={style:{colors:'#cfe8d6',fontSize:'11px'}};
 
@@ -1305,36 +1328,43 @@ ${kpiCards.map(c=>`
       chart:{type:'donut',height:300},
       series:c2vals,labels:c2labels,colors:COLORS,
       plotOptions:{pie:{donut:{size:'55%',labels:{show:true,total:{show:true,label:'Total',
-        formatter:()=>fmtK(c2total),color:'#d4af37',fontSize:'13px'}}}}},
+        formatter:()=>fmtRpK(c2total),color:'#d4af37',fontSize:'13px'}}}}},
       legend:{position:'bottom',labels:{colors:'#cfe8d6',fontSize:'10px'}},
-      tooltip:{theme:'dark',y:{formatter:v=>fmtK(v)}},
+      tooltip:{theme:'dark',y:{formatter:v=>fmtRpK(v)}},
       stroke:{colors:['#081a0e'],width:2},dataLabels:{enabled:false}
     }).render().catch(()=>{});
   }
+}
 
-  // Chart 3: Tren Belanja per Transaksi (Area)
-  const c3labels=charts.trend?.labels||[];
-  const c3vals=charts.trend?.values||[];
-  if(c3labels.length){
-    new ApexCharts(document.querySelector('#vC3'),{
-      chart:{type:'area',height:300,toolbar:{show:false}},
-      series:[{name:'Belanja',data:c3vals}],dataLabels:{enabled:false},
-      stroke:{curve:'smooth',width:2,colors:['#22c55e']},
-      fill:{type:'gradient',gradient:{shade:'dark',type:'vertical',opacityFrom:.7,opacityTo:.05}},
-      xaxis:{categories:c3labels,labels:{...axStyle,rotate:-45,rotateAlways:true,style:{...axStyle.style,fontSize:'9px'}}},
-      yaxis:{labels:{formatter:v=>fmtK(v),...axStyle}},
-      colors:['#22c55e'],tooltip:{theme:'dark',y:{formatter:v=>fmtK(v)}},
-      grid:{borderColor:'#1c3d26',strokeDashArray:4},markers:{size:3,colors:['#22c55e'],strokeColors:['#d4af37'],strokeWidth:1}
-    }).render().catch(()=>{});
+// ══════════════════════════════════════════════════
+//  VIEWER RECEIPTS — Rincian Belanja
+// ══════════════════════════════════════════════════
+async function pgViewerReceipts(){
+  const pc=document.getElementById('pageContent');
+  pc.innerHTML=`
+<div class="ph"><h1>Receipts</h1><p>Rincian belanja Anda</p></div>
+<div style="display:flex;align-items:center;justify-content:center;padding:60px;gap:12px;color:var(--tl)">
+  <i class="fas fa-spinner fa-spin" style="font-size:1.5rem;color:var(--pr)"></i> Memuat data...
+</div>`;
+
+  const {rincian,error}=await loadViewerData();
+  if(error){
+    pc.innerHTML=`<div class="tc"><p style="color:#f87171;padding:12px">${error}</p></div>`;
+    return;
   }
 
-  // ── Rincian Belanja Table ──
+  pc.innerHTML=`
+<div class="ph"><h1>Receipts</h1><p>Rincian belanja Anda</p></div>
+<div class="tc">
+  <h3 style="margin-bottom:14px"><i class="fas fa-receipt" style="color:var(--sc)"></i> Rincian Belanja</h3>
+  <div id="vRincian"></div>
+</div>`;
+
   const rincBox=document.getElementById('vRincian');
-  if(rincBox){
-    if(!rincian.length){
-      rincBox.innerHTML='<p style="color:#8fae9a;padding:12px">Belum ada rincian belanja.</p>';
-    } else {
-      rincBox.innerHTML=rincian.map(rc=>`
+  if(!rincian || !rincian.length){
+    rincBox.innerHTML='<p style="color:#8fae9a;padding:12px">Belum ada rincian belanja.</p>';
+  } else {
+    rincBox.innerHTML=rincian.map(rc=>`
 <div style="margin-bottom:16px;border:1px solid var(--bc);border-radius:8px;overflow:hidden">
   <div style="background:var(--pr2);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
     <div>
@@ -1343,7 +1373,7 @@ ${kpiCards.map(c=>`
       ${rc.pmtMode?`<span class="badge bb" style="margin-left:8px;font-size:.7rem">${rc.pmtMode}</span>`:''}
       ${rc.alamatPelanggan?`<div style="color:#8fae9a;font-size:.74rem;margin-top:2px">${rc.alamatPelanggan}</div>`:''}
     </div>
-    <div style="color:var(--pr);font-weight:700;font-size:.95rem">${fmtK(rc.amountReceived)}</div>
+    <div style="color:var(--pr);font-weight:700;font-size:.95rem">${fmtRpK(rc.amountReceived)}</div>
   </div>
   ${rc.items&&rc.items.length?`
   <div class="tw"><table style="min-width:400px">
@@ -1351,11 +1381,10 @@ ${kpiCards.map(c=>`
     <tbody>${rc.items.map(it=>`<tr>
       <td>${it.itemName||'–'}</td><td>${it.satuan||'–'}</td>
       <td>${(it.qty||0).toLocaleString('id-ID')}</td>
-      <td>${fmtK(it.harga)}</td><td>${fmtK(it.total)}</td>
+      <td>${fmtRpK(it.harga)}</td><td>${fmtRpK(it.total)}</td>
     </tr>`).join('')}</tbody>
   </table></div>` : '<p style="color:#8fae9a;font-size:.8rem;padding:10px 14px">– Detail item tidak tersedia –</p>'}
 </div>`).join('');
-    }
   }
 }
 
@@ -1868,8 +1897,8 @@ async function delPO(id){
 // ══════════════════════════════════════════════════
 let soQ='',soPage=1,_soData=[],_sdData=[],soBuilderRows=[];
 async function pgSales(){
-  // Viewer: redirect ke viewer dashboard
-  if(CU?.role==='Viewer'){ return pgViewerDashboard(); }
+  // Viewer: tampilkan produk sering dibeli & total belanja terbesar
+  if(CU?.role==='Viewer'){ return pgViewerSales(); }
   _dimCache=await loadDimensions();
   document.getElementById('pageContent').innerHTML=`
 <div class="ph"><h1>Sales</h1><p>Kelola Sales Orders (RANGESO + RANGESD)</p></div>
@@ -2083,8 +2112,8 @@ async function delSO(soId){
 // ══════════════════════════════════════════════════
 let rcQ='',rcPage=1,_rcData=[];
 async function pgReceipts(){
-  // Viewer: redirect ke viewer dashboard
-  if(CU?.role==='Viewer'){ return pgViewerDashboard(); }
+  // Viewer: tampilkan rincian belanja
+  if(CU?.role==='Viewer'){ return pgViewerReceipts(); }
   _dimCache=await loadDimensions();
   document.getElementById('pageContent').innerHTML=`
 <div class="ph"><h1>Receipts</h1><p>Penerimaan pembayaran dari pelanggan (RANGERECEIPTS)</p></div>
