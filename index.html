@@ -13,6 +13,9 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 <style>
+.wa-name-btn{background:none;border:0;padding:0;margin:0;color:inherit;text-align:left;font:inherit;cursor:pointer}
+.wa-name-btn:hover{color:#22c55e;text-decoration:underline}.wa-name-cell{cursor:pointer}.wa-name-cell:hover{background:rgba(34,197,94,.08)}
+#waPreview{width:100%;resize:vertical;line-height:1.55;background:rgba(255,255,255,.03);color:inherit}
 :root{
   --sb:#0a1f12;--sb2:#0d2818;--pr:#22c55e;--pr2:#16401f;--pr3:#1a9d4b;
   --sc:#d4af37;--td:#e8f5e9;--tl:#cfe8d6;--bc:#1c3d26;--cb:#0f2a18;
@@ -325,6 +328,7 @@ body{font-family:'Poppins','Roboto',sans-serif;}
       <div class="ni" data-p="inventory"><i class="fas fa-boxes"></i><span>Inventory</span></div>
       <div class="ni" data-p="suppliers"><i class="fas fa-truck-loading"></i><span>Suppliers</span></div>
       <div class="ni" data-p="customers"><i class="fas fa-user-friends"></i><span>Customers</span></div>
+      <div class="ni admin-wa-nav" data-p="whatsapp" id="navWhatsApp"><i class="fab fa-whatsapp"></i><span>WhatsApp Pelanggan</span></div>
       <div class="ni" data-p="purchases"><i class="fas fa-file-invoice-dollar"></i><span>Purchases</span></div>
       <div class="ni" data-p="sales"><i class="fas fa-chart-line"></i><span>Sales</span></div>
       <div class="ni" data-p="receipts"><i class="fas fa-receipt"></i><span>Receipts</span></div>
@@ -553,7 +557,7 @@ async function api(action, params={}){
   url.searchParams.set('action', action);
   if(SESSION_TOKEN) url.searchParams.set('token', SESSION_TOKEN);
   // Untuk GET ringan pakai URL params; untuk POST/data besar pakai body
-  const isWrite = ['add','update','delete','set','login','logout'].some(k=>action.toLowerCase().includes(k));
+  const isWrite = ['add','update','delete','set','login','logout','send'].some(k=>action.toLowerCase().includes(k));
   try {
     let res;
     if(isWrite){
@@ -707,10 +711,13 @@ async function doLogin(){
   // Nav visibility by role
   const isViewer = user.role==='Viewer';
   const isStaff  = user.role==='Staff';
+  const isAdmin  = user.role==='Admin';
   // Viewer: hide operational menus — only show Dashboard, Sales, Receipts, Logout
   const viewerHide=['inventory','suppliers','customers','purchases','payments','reports','settings'];
   document.querySelectorAll('.ni[data-p]').forEach(n=>{
-    if(n.dataset.p==='settings'){
+    if(n.dataset.p==='whatsapp'){
+      n.style.display=isAdmin?'':'none';
+    } else if(n.dataset.p==='settings'){
       n.style.display=(isStaff||isViewer)?'none':'';
     } else if(isViewer && viewerHide.includes(n.dataset.p)){
       n.style.display='none';
@@ -731,6 +738,7 @@ const BN_ICONS={dashboard:'fa-tachometer-alt',inventory:'fa-boxes',suppliers:'fa
   receipts:'fa-receipt',payments:'fa-credit-card',reports:'fa-chart-pie',settings:'fa-cogs',
   changepwd:'fa-key'};
 const BN_LABELS={dashboard:'Dashboard',inventory:'Inventory',suppliers:'Suppliers',customers:'Customers',
+  whatsapp:'WhatsApp Pelanggan',
   purchases:'Purchases',sales:'Sales',receipts:'Receipts',payments:'Payments',reports:'Reports',
   settings:'Settings',changepwd:'Ganti PW'};
 const BN_PRIORITY=['dashboard','inventory','sales','reports','receipts','purchases','customers','suppliers','payments','changepwd','settings'];
@@ -999,7 +1007,7 @@ function goto(p){
   document.querySelectorAll('.ni[data-p]').forEach(n=>n.classList.toggle('active',n.dataset.p===p));
   updateHeaderForPage(p);
   destroyCharts();
-  const pages={dashboard:pgDashboard,inventory:pgInventory,suppliers:pgSuppliers,customers:pgCustomers,
+  const pages={dashboard:pgDashboard,inventory:pgInventory,suppliers:pgSuppliers,customers:pgCustomers,whatsapp:pgWhatsApp,
     purchases:pgPurchases,sales:pgSales,receipts:pgReceipts,payments:pgPayments,reports:pgReports,settings:pgSettings,
     changepwd:pgChangePassword};
   document.getElementById('pageContent').innerHTML='';
@@ -1646,6 +1654,324 @@ async function delSup(id){
   } else { SUPPLIERS=SUPPLIERS.filter(x=>x.id!==id); }
   invalidateCache('suppliers');_supData=await getSuppliersData();
   toast('Supplier dihapus!');renderSup();
+}
+
+function esc(v){return String(v??'').replace(/[&<>\"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[m]));}
+
+// ══════════════════════════════════════════════════
+//  WHATSAPP PELANGGAN — ADMIN ONLY
+//  Direct WhatsApp Cloud API integration
+// ══════════════════════════════════════════════════
+let waQ='';
+let waSelected=new Set();
+const WA_CFG_KEY='kopsus_wa_cloud_cfg_v1';
+function getWaCfg(){try{return JSON.parse(localStorage.getItem(WA_CFG_KEY)||'{}')}catch(e){return {}}}
+function saveWaCfg(){
+  const cfg={
+    version:(document.getElementById('waVersion')?.value||'v21.0').trim(),
+    phoneNumberId:(document.getElementById('waPhoneId')?.value||'').trim(),
+    accessToken:(document.getElementById('waToken')?.value||'').trim()
+  };
+  localStorage.setItem(WA_CFG_KEY,JSON.stringify(cfg));
+  toast('Konfigurasi API WhatsApp disimpan.');
+}
+function waApiReady(){const c=getWaCfg();return !!(c.phoneNumberId&&c.accessToken)}
+// PENTING: WhatsApp Cloud API (graph.facebook.com) TIDAK bisa dipanggil langsung dari
+// browser — Meta tidak mengirim header CORS (Access-Control-Allow-Origin) untuk request
+// dari domain lain, jadi fetch() dari sini SELALU gagal dengan "Failed to fetch" meskipun
+// Access Token & Phone Number ID benar. Ini penyebab utama "kirim WA masih gagal".
+// Solusinya: request diteruskan ke backend Apps Script (BACKEND_URL) yang sudah dipakai
+// untuk data lain — Apps Script boleh memanggil API luar (UrlFetchApp) tanpa terhalang
+// CORS karena itu server-to-server, bukan dari browser. Tambahkan action 'sendWhatsApp'
+// di Code.gs (lihat contoh yang saya berikan di chat) agar ini berfungsi.
+async function waCloudSend(to,text){
+  const c=getWaCfg();
+  if(!c.phoneNumberId||!c.accessToken) throw new Error('Phone Number ID dan Access Token belum diisi.');
+  if(!USE_BACKEND) throw new Error('Backend URL belum dikonfigurasi di Settings — pengiriman WhatsApp API butuh proxy backend supaya tidak diblokir CORS.');
+  const res=await api('sendWhatsApp',{
+    to,
+    message:text,
+    waVersion:c.version||'v21.0',
+    waPhoneNumberId:c.phoneNumberId,
+    waAccessToken:c.accessToken
+  });
+  if(!res) throw new Error('Tidak ada respons dari backend. Pastikan action \'sendWhatsApp\' sudah ditambahkan di Code.gs.');
+  if(!res.ok) throw new Error(res.error||'Gagal mengirim WhatsApp (cek log Apps Script).');
+  return res;
+}
+// Fallback tanpa API/backend: buka WhatsApp Web/App dengan pesan sudah terisi.
+// Selalu berhasil (tidak kena CORS) tapi klik "Kirim" dilakukan manual oleh admin di WhatsApp.
+function waMeLink(phone,text){return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;}
+async function pgWhatsApp(){
+  if(!CU || CU.role!=='Admin'){
+    document.getElementById('pageContent').innerHTML='<div class="tc"><p style="color:#f87171">Akses ditolak — fitur WhatsApp pelanggan hanya dapat diakses Admin.</p></div>';
+    return;
+  }
+  [_cusData,_sdData]=await Promise.all([getCustomersData(),getSalesDetailsData()]);
+  waInfoCache={};
+  await loadWaFinanceMap();
+  const cfg=getWaCfg();
+  document.getElementById('pageContent').innerHTML=`
+  <div class="ph"><h1>WhatsApp Pelanggan</h1><p>Kirim pesan WhatsApp langsung melalui WhatsApp Cloud API — khusus Admin.</p></div>
+  <div class="tc">
+    <div class="tc" style="margin-bottom:14px;padding:14px;border:1px solid rgba(34,197,94,.25);background:rgba(34,197,94,.05)">
+      <div style="font-weight:800;margin-bottom:10px">⚙️ WhatsApp Cloud API</div>
+      <div style="display:grid;grid-template-columns:1fr 1.4fr 2fr;gap:10px">
+        <div><label>API Version</label><input id="waVersion" value="${esc(cfg.version||'v21.0')}" placeholder="v21.0"></div>
+        <div><label>Phone Number ID</label><input id="waPhoneId" value="${esc(cfg.phoneNumberId||'')}" placeholder="ID nomor WhatsApp Business"></div>
+        <div><label>Access Token</label><input id="waToken" type="password" value="${esc(cfg.accessToken||'')}" placeholder="System User Access Token"></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn btn-pr" id="waSaveCfg">💾 Simpan API</button>
+        <span id="waApiStatus" style="align-self:center;opacity:.8">${waApiReady()?'🟢 API siap digunakan':'🟠 API belum dikonfigurasi'}</span>
+      </div>
+      <div style="font-size:12px;opacity:.72;margin-top:9px">Token disimpan di browser Admin ini, tetapi pengiriman aktual dilakukan lewat backend (Apps Script) — bukan langsung dari browser — karena WhatsApp Cloud API memblokir request langsung dari domain lain (CORS). Pastikan action <b>sendWhatsApp</b> sudah ada di Code.gs backend Anda. Jika belum siap, gunakan tombol <b>Buka WA</b> di tabel sebagai jalan pintas manual (selalu berfungsi, tanpa API).</div>
+    </div>
+    ${_waFinanceWarning?`<div class="tc" style="margin-bottom:14px;padding:12px 14px;border:1px solid rgba(239,68,68,.35);background:rgba(239,68,68,.08);color:#fca5a5;font-size:13px">${esc(_waFinanceWarning)}</div>`:''}
+    <div class="ta" style="gap:10px;align-items:center">
+      <input class="si" id="waSearch" placeholder="Cari nama / nomor / ID pelanggan...">
+      <button class="btn btn-pr" id="waSelectAll"><i class="fas fa-check-double"></i> Pilih Semua</button>
+      <button class="btn" id="waClear"><i class="fas fa-times"></i> Batal</button>
+      <button class="btn btn-pr" id="waSend"><i class="fab fa-whatsapp"></i> Kirim via API</button>
+    </div>
+    <div class="notice" style="margin:12px 0;padding:12px;border-radius:10px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2)">
+      <b>Mode API:</b> pesan dikirim langsung ke nomor pelanggan melalui endpoint WhatsApp Cloud API. Untuk pesan bisnis yang dimulai oleh toko di luar jendela layanan pelanggan, gunakan template WhatsApp yang telah disetujui.
+    </div>
+    <div class="tc" style="margin:0 0 14px;padding:14px">
+      <label style="display:block;margin-bottom:7px;font-weight:700">Template pesan</label>
+      <textarea id="waTemplate" rows="8" style="width:100%;padding:10px;border-radius:8px;border:1px solid #334155">Halo {{nama}},
+
+Berikut informasi Anda:
+
+Simpanan Pokok: {{simpananPokok}}
+Simpanan Wajib: {{simpananWajib}}
+Nilai SHU: {{nilaiSHU}}
+Total Belanja Bulan Ini: {{belanjaMonth}}
+
+Terima kasih 🙏</textarea>
+      <small style="display:block;margin-top:7px;opacity:.7">Template hanya menjadi pola. Klik <b>nama pelanggan</b> pada tabel untuk mengisi preview dengan data pelanggan tersebut.</small>
+    </div>
+    <div class="tc" style="margin:0 0 14px;padding:14px;border:1px solid rgba(34,197,94,.25);background:rgba(34,197,94,.04)">
+      <label style="display:block;margin-bottom:7px;font-weight:700">Pesan lengkap pelanggan</label>
+      <textarea id="waPreview" rows="10" readonly placeholder="Klik nama pelanggan pada tabel di bawah. Pesan lengkap pelanggan akan tampil di sini."></textarea>
+      <div id="waPreviewInfo" style="font-size:12px;opacity:.7;margin-top:7px">Belum ada pelanggan yang dipilih.</div>
+    </div>
+    <div id="waProgress" style="display:none;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px"><span id="waProgressText">Mengirim...</span><span id="waProgressPct">0%</span></div>
+      <div style="height:8px;background:#173522;border-radius:20px;overflow:hidden"><div id="waProgressBar" style="height:100%;width:0;background:#22c55e"></div></div>
+    </div>
+    <div class="tw"><table>
+      <thead><tr><th style="width:45px">✓</th><th>Customer ID</th><th>Nama</th><th>WhatsApp</th><th>Kota</th><th>Status</th><th>Aksi</th></tr></thead>
+      <tbody id="waTb"></tbody>
+    </table></div>
+  </div>`;
+  document.getElementById('waSearch').addEventListener('input',e=>{waQ=e.target.value;renderWaCustomers();});
+  document.getElementById('waSelectAll').addEventListener('click',()=>{renderWaCustomers(true);});
+  document.getElementById('waClear').addEventListener('click',()=>{waSelected.clear();renderWaCustomers();});
+  document.getElementById('waSaveCfg').addEventListener('click',()=>{saveWaCfg();updateWaApiStatus();});
+  document.getElementById('waSend').addEventListener('click',sendWaSelected);
+  renderWaCustomers();
+}
+function updateWaApiStatus(){const el=document.getElementById('waApiStatus');if(el)el.textContent=waApiReady()?'🟢 API siap digunakan':'🟠 API belum dikonfigurasi';}
+function waField(r,...keys){return fv(r,...keys)||'';}
+function waPhone(r){let p=String(waField(r,'Customer Contact','contact','Customer Phone','phone','WhatsApp','WhatsApp Number')).replace(/\D/g,'');if(p.startsWith('0'))p='62'+p.slice(1);else if(p.startsWith('8'))p='62'+p;return p;}
+// Data yang dikirim ke WA dibuat mengikuti 4 KPI utama Dashboard Anggota:
+// Simpanan Pokok, Simpanan Wajib, Nilai SHU, dan Belanja Bulan Ini.
+let waInfoCache={};
+function waNum(v){
+  if(v===null||v===undefined||v==='') return 0;
+  if(typeof v==='number') return v;
+  const n=String(v).replace(/[^0-9,-]/g,'').replace(/\.(?=\d{3}(?:\D|$))/g,'').replace(',','.');
+  const x=parseFloat(n); return isNaN(x)?0:x;
+}
+function waDateValue(v){
+  if(v instanceof Date) return v;
+  if(typeof v==='number') return new Date((v-25569)*86400000);
+  const st=String(v||'').trim();
+  if(!st)return null;
+  let m;
+  // MM/DD/YYYY or M/D/YYYY
+  m=st.match(/^(\\d{1,2})[\\/\\-](\\d{1,2})[\\/\\-](\\d{4})$/);
+  if(m){ const a=+m[1],b=+m[2],y=+m[3]; return new Date(y,a-1,b); }
+  const d=new Date(st); return isNaN(d)?null:d;
+}
+function waThisMonthSpend(id){
+  const rows=Array.isArray(_sdData)&&_sdData.length?_sdData:(typeof SALES_DETAILS!=='undefined'?SALES_DETAILS:[]);
+  const now=new Date(), ym=now.getFullYear(), mm=now.getMonth();
+  return rows.filter(x=>String(waField(x,'Customer ID','customerId'))===String(id))
+    .reduce((sum,x)=>{
+      const d=waDateValue(waField(x,'SO Date','soDate'));
+      return d&&d.getFullYear()===ym&&d.getMonth()===mm ? sum+waNum(waField(x,'Total Sales Price','totalSalesPrice')) : sum;
+    },0);
+}
+// Simpanan Pokok/Wajib/Nilai SHU TIDAK ada di sheet Customers — data ini hanya pernah
+// diambil per-anggota-yang-login lewat action 'getViewerDashboard' (pakai token miliknya
+// sendiri), sehingga saat halaman WhatsApp mengambilnya langsung dari baris Customers,
+// hasilnya selalu kosong ('–'). Ini penyebab "template masih blank" walau data pelanggan
+// aslinya ada.
+// Perbaikan: di sini kita coba ambil data finansial semua anggota sekaligus lewat action
+// backend baru 'getMembersFinance' (admin-only, harus ditambahkan di Code.gs — lihat
+// contoh yang saya berikan di chat). Kalau action itu belum ada di backend, kode ini
+// otomatis jatuh ke cara lama (baca kolom di Customers) supaya tidak error.
+let _waFinanceMap={};
+let _waFinanceWarning='';
+async function loadWaFinanceMap(){
+  _waFinanceMap={};
+  _waFinanceWarning='';
+  if(!USE_BACKEND) return;
+  try{
+    const res=await api('getMembersFinance',{});
+    if(res&&res.ok&&Array.isArray(res.data)){
+      res.data.forEach(m=>{ _waFinanceMap[String(m.customerId||m['Customer ID']||m.id)]=m; });
+      // Diagnostik: cek di console (F12) untuk lihat apakah datanya benar-benar
+      // nyambung ke spreadsheet Simpanan Viewer.
+      console.info('[WA] getMembersFinance: '+res.matched+'/'+res.viewerRows+' baris Sheet1 (Viewer) berhasil dicocokkan ke Customer ID. Header Sheet1:',res.viewerHeaders);
+      if(res.viewerRows===0){
+        _waFinanceWarning='⚠️ Sheet1 di spreadsheet Simpanan Viewer kosong atau tidak ditemukan — Simpanan Pokok/Wajib/SHU tidak akan pernah terisi sampai data diisi di sana.';
+      } else if(res.matched===0){
+        _waFinanceWarning='⚠️ Tidak ada Customer ID yang cocok dengan kolom NIK/Code Pelanggan di Sheet1 (Viewer). Cek format ID-nya sama persis (lihat console/F12 untuk daftar header Sheet1).';
+      }
+      if(_waFinanceWarning) console.warn('[WA] '+_waFinanceWarning);
+    } else if(res && !res.ok){
+      _waFinanceWarning='⚠️ Gagal memuat data finansial anggota: '+(res.error||'error tidak diketahui')+'. Kemungkinan action \'getMembersFinance\' belum ter-deploy di backend (perlu Manage deployments → Edit → New version).';
+      console.warn('[WA] getMembersFinance error:',res.error);
+    }
+  }catch(e){ _waFinanceWarning='⚠️ Tidak bisa menghubungi backend untuk data finansial: '+e.message; console.warn('[WA] getMembersFinance belum tersedia di backend:',e.message); }
+}
+function waCustomerInfo(r){
+  const id=String(waField(r,'Customer ID','id'));
+  if(waInfoCache[id]) return waInfoCache[id];
+  const fin=_waFinanceMap[id];
+  const pick=(...keys)=>{
+    for(const k of keys){ const v=waField(r,k); if(v!==''&&v!==null&&v!==undefined)return v; }
+    return '';
+  };
+  const pokok=fin&&fin.simpananPokok!=null?fin.simpananPokok:pick('Simpanan Pokok','simpananPokok','Pokok','pokok');
+  const wajib=fin&&fin.simpananWajib!=null?fin.simpananWajib:pick('Simpanan Wajib','simpananWajib','Wajib','wajib');
+  const shu=fin&&fin.nilaiSHU!=null?fin.nilaiSHU:pick('Nilai SHU','nilaiSHU','SHU','shu');
+  const info={
+    simpananPokok:pokok!==''?(typeof pokok==='number'?fmtRpK(pokok):String(pokok)):'–',
+    simpananWajib:wajib!==''?(typeof wajib==='number'?fmtRpK(wajib):String(wajib)):'–',
+    nilaiSHU:shu!==''?(typeof shu==='number'?fmtRpK(shu):String(shu)):'–',
+    belanjaMonth:fmtRpK(waThisMonthSpend(id))
+  };
+  waInfoCache[id]=info; return info;
+}
+function waMsg(r){
+  const t=document.getElementById('waTemplate')?.value||'';
+  const info=waCustomerInfo(r);
+  return t
+    .replaceAll('{{nama}}',waField(r,'Customer Name','name'))
+    .replaceAll('{{id}}',waField(r,'Customer ID','id'))
+    .replaceAll('{{kota}}',waField(r,'City','city'))
+    .replaceAll('{{toko}}',COMPANY?.companyName||'Toko')
+    .replaceAll('{{simpananPokok}}',info.simpananPokok)
+    .replaceAll('{{simpananWajib}}',info.simpananWajib)
+    .replaceAll('{{nilaiSHU}}',info.nilaiSHU)
+    .replaceAll('{{belanjaMonth}}',info.belanjaMonth);
+}
+function renderWaCustomers(selectAll=false){
+  if(selectAll)_cusData.forEach(r=>{if(waPhone(r))waSelected.add(String(waField(r,'Customer ID','id')));});
+  const q=(waQ||'').toLowerCase();
+  const rows=_cusData.filter(r=>(String(waField(r,'Customer ID','id'))+' '+String(waField(r,'Customer Name','name'))+' '+String(waPhone(r))+' '+String(waField(r,'City','city'))).toLowerCase().includes(q));
+  const tb=document.getElementById('waTb'); if(!tb)return;
+
+  tb.innerHTML=rows.length?rows.map(r=>{
+    const id=String(waField(r,'Customer ID','id')),phone=waPhone(r),checked=waSelected.has(id)?'checked':'';
+    return `<tr>
+      <td><input class="wa-check" type="checkbox" data-id="${esc(id)}" ${checked} ${phone?'':'disabled'}></td>
+      <td>${esc(id)}</td>
+      <td class="wa-name-cell" data-wa-preview="${esc(id)}" title="Klik nama untuk mengisi pesan lengkap">
+        <button type="button" class="wa-name-btn" data-wa-preview="${esc(id)}">
+          <strong>${esc(waField(r,'Customer Name','name'))}</strong>
+        </button>
+      </td>
+      <td>${phone?esc(phone):'<span style="color:#f87171">Tidak ada nomor</span>'}</td>
+      <td>${esc(waField(r,'City','city'))}</td>
+      <td id="wast_${esc(id)}"><span style="opacity:.65">Siap</span></td>
+      <td>${phone?`<button type="button" class="btn wa-send-one" data-wa-send="${esc(id)}"><i class="fab fa-whatsapp"></i> Kirim</button>
+        <a class="btn btn-ol btn-sm" style="margin-left:5px" href="${waMeLink(phone,waMsg(r))}" target="_blank" rel="noopener" title="Buka WhatsApp Web/App dengan pesan terisi (tanpa API, tanpa CORS)"><i class="fas fa-external-link-alt"></i> Buka WA</a>`:'-'}</td>
+    </tr>`;
+  }).join(''):'<tr><td colspan="7" style="text-align:center;padding:25px">Tidak ada pelanggan.</td></tr>';
+
+  // Event delegation: tabel dibuat ulang setiap render, jadi handler dipasang ke tbody sekali.
+  // Klik NAMA atau area nama -> langsung isi pesan lengkap pelanggan.
+  tb.onclick = async function(ev){
+    const nameCell = ev.target.closest('.wa-name-cell');
+    const nameBtn = ev.target.closest('.wa-name-btn');
+    if(nameCell && tb.contains(nameCell)){
+      ev.preventDefault();
+      ev.stopPropagation();
+      showWaPreview(nameCell.dataset.waPreview || '');
+      return;
+    }
+    if(nameBtn && tb.contains(nameBtn)){
+      ev.preventDefault();
+      ev.stopPropagation();
+      showWaPreview(nameBtn.dataset.waPreview || '');
+      return;
+    }
+    const sendBtn = ev.target.closest('.wa-send-one');
+    if(sendBtn && tb.contains(sendBtn)){
+      ev.preventDefault();
+      ev.stopPropagation();
+      const id=sendBtn.dataset.waSend || '';
+      showWaPreview(id);
+      await sendOneWa(id);
+      return;
+    }
+  };
+  tb.onchange = function(ev){
+    const chk=ev.target.closest('.wa-check');
+    if(chk && tb.contains(chk)) toggleWaCustomer(chk.dataset.id || '', chk.checked);
+  };
+}
+function toggleWaCustomer(id,v){v?waSelected.add(id):waSelected.delete(id);}
+function waCustomerFullText(r){
+  const info=waCustomerInfo(r);
+  const name=waField(r,'Customer Name','name')||'Pelanggan';
+  return `Halo ${name},\n\nBerikut informasi Anda:\n\nSimpanan Pokok: ${info.simpananPokok}\nSimpanan Wajib: ${info.simpananWajib}\nNilai SHU: ${info.nilaiSHU}\nTotal Belanja Bulan Ini: ${info.belanjaMonth}\n\nTerima kasih 🙏`;
+}
+function showWaPreview(id){
+  const r=_cusData.find(x=>String(waField(x,'Customer ID','id'))===String(id));
+  if(!r)return;
+  const preview=document.getElementById('waPreview');
+  const info=document.getElementById('waPreviewInfo');
+  if(preview)preview.value=waCustomerFullText(r);
+  if(info)info.textContent='Preview untuk '+(waField(r,'Customer Name','name')||'Pelanggan')+' ('+(waPhone(r)||'tanpa nomor WhatsApp')+')';
+  const safeId=String(id).replace(/[^A-Za-z0-9_-]/g,'_');
+  const row=document.getElementById('wast_'+safeId);
+  if(row)row.closest('tr')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+  document.querySelectorAll('#waTb .wa-name-btn').forEach(b=>{
+    b.style.textDecoration=(b.getAttribute('data-wa-preview')===String(id))?'underline':'';
+  });
+}
+function setWaRowStatus(id,text,ok=true){const e=document.getElementById('wast_'+CSS.escape(String(id)));if(e)e.innerHTML=`<span style="color:${ok?'#22c55e':'#ef4444'}">${esc(text)}</span>`;}
+async function sendOneWa(id){
+  if(!CU||CU.role!=='Admin')return toast('Akses ditolak.',true);
+  const r=_cusData.find(x=>String(waField(x,'Customer ID','id'))===String(id));if(!r)return;
+  const p=waPhone(r);if(!p)return toast('Nomor WhatsApp tidak tersedia.',true);
+  if(!waApiReady())return toast('Isi Phone Number ID dan Access Token terlebih dahulu.',true);
+  setWaRowStatus(id,'Mengirim...');
+  try{const out=await waCloudSend(p,waMsg(r));setWaRowStatus(id,'Terkirim',true);toast('WA terkirim ke '+waField(r,'Customer Name','name'));return out;}
+  catch(e){setWaRowStatus(id,e.message||'Gagal',false);toast('Gagal kirim: '+(e.message||'error'),true);}
+}
+async function sendWaSelected(){
+  if(!CU||CU.role!=='Admin')return toast('Akses ditolak.',true);
+  if(!waApiReady())return toast('Konfigurasi API WhatsApp belum lengkap.',true);
+  const rows=_cusData.filter(r=>waSelected.has(String(waField(r,'Customer ID','id')))&&waPhone(r));
+  if(!rows.length)return toast('Pilih minimal satu pelanggan yang memiliki nomor WhatsApp.',true);
+  if(!confirm('Kirim WhatsApp langsung ke '+rows.length+' pelanggan terpilih?'))return;
+  const box=document.getElementById('waProgress'),bar=document.getElementById('waProgressBar'),pct=document.getElementById('waProgressPct'),txt=document.getElementById('waProgressText');
+  if(box)box.style.display='block'; let ok=0,fail=0;
+  for(let i=0;i<rows.length;i++){
+    const r=rows[i],id=String(waField(r,'Customer ID','id')); if(txt)txt.textContent='Mengirim '+(i+1)+'/'+rows.length+' — '+waField(r,'Customer Name','name');
+    try{await waCloudSend(waPhone(r),waMsg(r));ok++;setWaRowStatus(id,'Terkirim',true);}catch(e){fail++;setWaRowStatus(id,e.message||'Gagal',false);}
+    const percent=Math.round(((i+1)/rows.length)*100);if(bar)bar.style.width=percent+'%';if(pct)pct.textContent=percent+'%';
+    await new Promise(resolve=>setTimeout(resolve,700));
+  }
+  if(txt)txt.textContent='Selesai — '+ok+' terkirim, '+fail+' gagal';
+  toast('Selesai: '+ok+' terkirim, '+fail+' gagal',fail>0);
 }
 
 // ══════════════════════════════════════════════════
