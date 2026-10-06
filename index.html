@@ -332,6 +332,7 @@ tbody tr{border-bottom-color:var(--bc)}tbody tr:hover{background:var(--pr2)}tbod
 .lk-t{font-size:clamp(84px,19vw,168px);font-weight:700;line-height:1.02;letter-spacing:-.035em;font-variant-numeric:tabular-nums;
 background:linear-gradient(180deg,rgba(255,255,255,.9),rgba(255,255,255,.22) 70%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:1.4px rgba(255,255,255,.95);filter:drop-shadow(0 8px 22px rgba(40,70,170,.45)) drop-shadow(0 1px 0 rgba(255,255,255,.6))}
 #loginPage .lc{margin-top:26px;width:100%;max-width:340px;padding:24px 22px 18px;border-radius:30px;cursor:default;transition:opacity .5s ease,transform .55s cubic-bezier(.2,.9,.25,1)}
+#loginPage.lk-idle{touch-action:none;overscroll-behavior:none}
 #loginPage.lk-idle .lc{opacity:0;transform:translateY(36px) scale(.96);pointer-events:none}
 .lc-logo img{width:68px;height:68px;border:2px solid rgba(255,255,255,.9);box-shadow:0 8px 22px var(--gs)}.lc-title{color:var(--td)!important;font-size:1.2rem;margin:8px 0 2px}
 .lc-note{background:var(--lens);border-color:var(--bc);color:var(--sc);border-radius:12px}.lc-sub{display:none}.fg label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
@@ -3429,8 +3430,12 @@ function fsBtn(){const b=document.createElement('button');b.className='thb fsb';
 function fsIcon(){document.querySelectorAll('.fsb i').forEach(i=>i.className='fas fa-'+(inFS()?'compress':'expand'))}
 ['fullscreenchange','webkitfullscreenchange'].forEach(e=>document.addEventListener(e,fsIcon));
 /* browser hanya mengizinkan layar penuh lewat interaksi pengguna: pakai sentuhan/klik/tombol pertama */
-function auto(){['pointerdown','keydown'].forEach(e=>removeEventListener(e,auto,true));if(FSOK()&&!inFS())fs()}
-['pointerdown','keydown'].forEach(e=>addEventListener(e,auto,true));
+const GE=['pointerup','touchend','click','keydown'];
+function auto(e){if(e.type==='keydown'&&(e.key==='Escape'||e.key==='F11'))return;
+ if(!FSOK()){GE.forEach(t=>removeEventListener(t,auto,true));return}
+ if(inFS()){GE.forEach(t=>removeEventListener(t,auto,true));return}
+ try{const q=(H.requestFullscreen||H.webkitRequestFullscreen).call(H);if(q&&q.then)q.then(()=>GE.forEach(t=>removeEventListener(t,auto,true))).catch(()=>{});else GE.forEach(t=>removeEventListener(t,auto,true))}catch(_){}}
+GE.forEach(t=>addEventListener(t,auto,true));
 /* ===== jendela: geser, ubah ukuran, kecilkan, perbesar ===== */
 const mq=matchMedia('(max-width:700px)'),cl=(v,a,b)=>Math.max(a,Math.min(b,v));let G=null,SV=null;
 ['n','s','e','w','ne','nw','se','sw'].forEach(h=>{const d=document.createElement('i');d.className='rz '+h;d.dataset.h=h;ap.append(d)});
