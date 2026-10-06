@@ -4,14 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <title>KopSUS App</title>
-<meta name="theme-color" content="#0a1f12">
+<meta name="theme-color" content="#07120d">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="KopSUS">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Poppins:wght@400;500;600&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<script>(function(){var t="dark";try{t=localStorage.getItem("ks_theme")||"dark"}catch(e){}document.documentElement.dataset.theme=t})()</script>
 <style>
 .wa-name-btn{background:none;border:0;padding:0;margin:0;color:inherit;text-align:left;font:inherit;cursor:pointer}
 .wa-name-btn:hover{color:#22c55e;text-decoration:underline}.wa-name-cell{cursor:pointer}.wa-name-cell:hover{background:rgba(34,197,94,.08)}
@@ -282,9 +283,153 @@ body{font-family:'Poppins','Roboto',sans-serif;}
   .drawer-overlay{width:480px;left:50%;right:auto;margin-left:-240px;}
   .sidebar{left:50%;margin-left:-240px;}
 }
+
+/* ===== KopSUS · Liquid Glass (iPhone & macOS) ===== */
+:root{--f:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",Inter,"Segoe UI",system-ui,sans-serif;
+--sb:transparent;--sb2:transparent;--pr:#30c25b;--pr2:rgba(48,194,91,.16);--pr3:#1f9d47;--sc:#8a5a00;
+--td:#17181a;--tl:#33363b;--mut:rgba(55,60,70,.66);--bc:rgba(60,70,90,.14);--cb:transparent;--hb:rgba(0,0,0,.06);--pg:transparent;--ib:rgba(255,255,255,.72);--th:rgba(255,255,255,.45);
+--ga:rgba(255,255,255,.74);--gb:rgba(255,255,255,.2);--rim:#fff;--gs:rgba(35,60,110,.22);--lens:rgba(255,255,255,.66);--bar:rgba(0,0,0,.5);
+--ch-t:#3a3f4b;--ch-g:rgba(60,70,90,.12);--ch-s:#fff;--ch-l:#0d3b1d;
+--w1:#ffb4d3;--w2:#9cc4ff;--w3:#9ff0df;--w4:#ffe2a0;--wb:#e9f0ff;--sel:linear-gradient(180deg,#4cd964,#26a847)}
+:root[data-theme=dark]{--sc:#e8c25a;--td:#f3f6f4;--tl:#d6e6dc;--mut:rgba(235,245,238,.62);--bc:rgba(255,255,255,.14);--hb:rgba(255,255,255,.1);--ib:rgba(0,0,0,.3);--th:rgba(255,255,255,.07);
+--pr:#32d764;--pr2:rgba(50,215,100,.2);--pr3:#27b552;--ga:rgba(255,255,255,.17);--gb:rgba(255,255,255,.04);--rim:rgba(255,255,255,.75);--gs:rgba(0,0,0,.5);--lens:rgba(255,255,255,.2);--bar:rgba(255,255,255,.8);
+--ch-t:#cfe8d6;--ch-g:rgba(255,255,255,.1);--ch-s:#10261a;--ch-l:#e8f5e9;
+--w1:#0f5a4a;--w2:#143a6b;--w3:#0b6b5c;--w4:#5a3d0f;--wb:#07120d}
+html{color-scheme:light}html[data-theme=dark]{color-scheme:dark}
+body{font-family:var(--f)!important;color:var(--td);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;min-height:100vh;
+background:radial-gradient(at 12% 18%,var(--w1) 0,transparent 42%),radial-gradient(at 85% 12%,var(--w2) 0,transparent 44%),radial-gradient(at 78% 88%,var(--w3) 0,transparent 46%),radial-gradient(at 8% 86%,var(--w4) 0,transparent 42%),var(--wb) fixed}
+button,input,select,textarea,table,.ph h1,.lc-title,.tc h3,.ni,.btn,.tab-btn,.sun,.app-header-title,.bn-item,.fc,.fg2 input,.fg2 select,.fg2 textarea,tbody td,thead th,.lb,.mb h2{font-family:var(--f)!important}
+/* kaca tajam */
+.kpi,.cc,.tc,.dt-card,.mb,.lc{position:relative}
+.kpi,.cc,.tc,.dt-card,.mb,.lc,.bottom-nav,.sidebar,#appPage,#dock,#menubar,.app-header,#wcm{
+background:linear-gradient(135deg,var(--ga),var(--gb) 46%,var(--ga));-webkit-backdrop-filter:blur(16px) saturate(210%) contrast(1.04);backdrop-filter:blur(16px) saturate(210%) contrast(1.04);
+border:1px solid color-mix(in srgb,var(--rim) 55%,transparent);box-shadow:inset 0 1.5px 0 var(--rim),inset 0 -1px 0 color-mix(in srgb,var(--rim) 30%,transparent),inset 0 0 0 .5px rgba(255,255,255,.35),0 0 0 .5px rgba(20,30,50,.07),0 12px 32px var(--gs)}
+.kpi::before,.cc::before,.tc::before,.dt-card::before,.mb::before,.lc::before,.bottom-nav::before,#dock::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.2px;pointer-events:none;z-index:3;height:auto;
+background:linear-gradient(135deg,var(--rim),transparent 28%,transparent 68%,color-mix(in srgb,var(--rim) 70%,transparent));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+.kpi,.cc,.tc,.dt-card{border-radius:22px}.kpi{transition:transform .25s cubic-bezier(.2,.8,.3,1)}.kpi:hover{transform:translateY(-2px)}
+.sidebar{background:linear-gradient(180deg,var(--ga),var(--gb))}
+.ph{border-bottom-color:var(--bc)}.ph h1,.tc h3,.cc h3,.mb h2,.dt-card h4{color:var(--td);font-weight:700;letter-spacing:-.015em}.ph p,.lc-sub,.lc-foot{color:var(--mut)}
+.kpi h3{color:var(--mut)}.kpi h2{color:var(--td)}.kpi h3 i{color:var(--pr3)}
+thead th{background:var(--th);color:var(--mut);font-weight:600;border-bottom:1px solid var(--bc)}thead th:first-child{border-radius:10px 0 0 10px}thead th:last-child{border-radius:0 10px 10px 0}
+tbody tr{border-bottom-color:var(--bc)}tbody tr:hover{background:var(--pr2)}tbody td{color:var(--td)}
+.fc,.fg2 input,.fg2 select,.fg2 textarea,.si,#waPreview{background:var(--ib);color:var(--td);border:1px solid var(--bc);box-shadow:inset 0 1px 2px rgba(0,0,0,.06)}
+.fc:focus,.si:focus,.fg2 input:focus,.fg2 select:focus,.fg2 textarea:focus{border-color:var(--pr);box-shadow:0 0 0 3.5px var(--pr2)}
+.btn{font-weight:600;box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 2px 8px rgba(0,0,0,.12)}
+.btn-pr,.lb{background:linear-gradient(180deg,#52dc72,#22a848);color:#fff}.btn-pr:hover,.lb:hover{background:linear-gradient(180deg,#46d067,#1d9a40)}
+.btn-sc{background:linear-gradient(180deg,#f7cb5a,#dc9c12);color:#3a2600}.btn-ol{background:var(--lens);color:var(--td);border:1px solid var(--bc)}.btn-ol:hover{background:var(--pr2)}
+.badge{border:1px solid rgba(255,255,255,.5)}.bg{background:rgba(48,194,91,.18);color:#0f7a33}.by{background:rgba(245,176,30,.2);color:#8a5a00}.br{background:rgba(255,69,58,.16);color:#c4261c}.bb{background:rgba(10,132,255,.16);color:#0a5fc2}.bo{background:rgba(255,149,0,.18);color:#b25a00}
+:root[data-theme=dark] .bg{color:#4ade80}:root[data-theme=dark] .by{color:#f0cf6a}:root[data-theme=dark] .br{color:#ff8a80}:root[data-theme=dark] .bb{color:#7cb8ff}:root[data-theme=dark] .bo{color:#ffb066}
+.tab-btn{color:var(--mut)}.tab-btn.active{color:var(--pr3);border-bottom-color:var(--pr)}.tabs{border-bottom-color:var(--bc)}
+.mo{background:rgba(20,30,50,.28);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.toast{border-radius:16px;background:linear-gradient(180deg,#52dc72,#22a848);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 12px 30px rgba(0,0,0,.25)}
+.dev-banner{background:linear-gradient(180deg,#f7cb5a,#dc9c12);color:#3a2600}
+.ni{color:var(--tl);font-family:var(--f)!important}.ni:hover{background:var(--pr2);color:var(--td)}.ni.active{color:#fff}
+.thb{width:30px;height:30px;border-radius:50%;border:1px solid color-mix(in srgb,var(--rim) 60%,transparent);background:var(--lens);color:var(--td);display:inline-grid;place-items:center;cursor:pointer;box-shadow:inset 0 1px 0 var(--rim),0 2px 8px var(--gs);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+/* ===== LOCKSCREEN ===== */
+#loginPage{position:fixed;inset:0;z-index:3000;flex-direction:column;justify-content:flex-start;align-items:center;min-height:0!important;padding:max(56px,8vh) 20px 24px!important;overflow-y:auto;background:linear-gradient(rgba(255,255,255,.1),transparent)!important;cursor:pointer}
+#loginPage .thb{position:absolute;top:max(14px,env(safe-area-inset-top));right:16px}
+.lk-d{font-size:clamp(17px,2.4vw,22px);font-weight:600;color:#fff;text-shadow:0 1px 10px rgba(30,50,110,.45);letter-spacing:.01em}
+.lk-t{font-size:clamp(84px,19vw,168px);font-weight:700;line-height:1.02;letter-spacing:-.035em;font-variant-numeric:tabular-nums;
+background:linear-gradient(180deg,rgba(255,255,255,.9),rgba(255,255,255,.22) 70%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:1.4px rgba(255,255,255,.95);filter:drop-shadow(0 8px 22px rgba(40,70,170,.45)) drop-shadow(0 1px 0 rgba(255,255,255,.6))}
+#loginPage .lc{margin-top:26px;width:100%;max-width:340px;padding:24px 22px 18px;border-radius:30px;cursor:default;transition:opacity .5s ease,transform .55s cubic-bezier(.2,.9,.25,1)}
+#loginPage.lk-idle .lc{opacity:0;transform:translateY(36px) scale(.96);pointer-events:none}
+.lc-logo img{width:68px;height:68px;border:2px solid rgba(255,255,255,.9);box-shadow:0 8px 22px var(--gs)}.lc-title{color:var(--td)!important;font-size:1.2rem;margin:8px 0 2px}
+.lc-note{background:var(--lens);border-color:var(--bc);color:var(--sc);border-radius:12px}.lc-sub{display:none}.fg label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.lc .fc{height:46px;border-radius:999px;padding:0 18px;text-align:center}.lc .lb{border-radius:999px;margin-top:2px}
+.lk-hint,.lk-fb{position:fixed;color:#fff;text-shadow:0 1px 8px rgba(30,50,110,.5);transition:opacity .4s}
+.lk-hint{bottom:max(34px,env(safe-area-inset-bottom));left:0;right:0;text-align:center;font-size:14px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;animation:bob 2.2s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-5px)}}
+#loginPage:not(.lk-idle) .lk-hint,#loginPage:not(.lk-idle) .lk-fb{opacity:0;pointer-events:none}
+.lk-fb{bottom:46px;width:50px;height:50px;border-radius:50%;display:none;place-items:center;font-size:19px;background:var(--lens);border:1px solid color-mix(in srgb,var(--rim) 60%,transparent);box-shadow:inset 0 1px 0 var(--rim);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}.lk-fb.l{left:40px}.lk-fb.r{right:40px}
+/* ===== iPhone (mobile) ===== */
+#sbar,#island,#hi,#menubar,#dock,.tbar{display:none}
+@media(max-width:700px){
+#sbar{display:flex;position:fixed;z-index:3500;top:0;left:0;right:0;height:46px;padding:14px 30px 0;justify-content:space-between;font-size:15px;font-weight:600;color:var(--td);pointer-events:none}
+body:not(.in) #sbar{color:#fff}#sbar span{display:flex;gap:6px;align-items:center}
+#island{display:block;position:fixed;z-index:3600;top:10px;left:50%;width:96px;height:27px;margin-left:-48px;border-radius:20px;background:#000;pointer-events:none}
+#hi{display:block;position:fixed;z-index:3600;left:50%;bottom:7px;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:var(--bar);pointer-events:none}
+#loginPage{padding-top:66px!important}.lk-fb{display:grid}
+#loginPage.lk-idle .lc{display:block}#loginPage .thb{top:54px;right:18px}
+#appPage{max-width:none!important;margin:0!important;box-shadow:none!important;background:none!important;border:0!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+.app-header{padding:max(52px,calc(env(safe-area-inset-top) + 10px)) 16px 10px;border:0;border-bottom:1px solid var(--bc);border-radius:0 0 26px 26px;box-shadow:inset 0 -1px 0 var(--rim),0 8px 24px var(--gs)}
+.app-header .hamburger{color:var(--td);background:var(--lens);border:1px solid color-mix(in srgb,var(--rim) 60%,transparent);border-radius:50%;box-shadow:inset 0 1px 0 var(--rim)}
+.app-header-title{color:var(--td);font-size:1.45rem;font-weight:700;letter-spacing:-.025em}.app-header-avatar{background:linear-gradient(160deg,#6ee48a,#1f9d47);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.6)}
+.content{padding:16px 14px 24px}.kpi,.cc,.tc{border-radius:26px}.kpi h2{word-break:normal;font-size:.98rem;letter-spacing:-.02em;white-space:nowrap}
+.bottom-nav{left:14px;right:14px;width:auto;margin:0;bottom:calc(20px + var(--safe-b));border-radius:999px;padding:6px}
+.bottom-nav .bn-item{border-radius:999px;color:var(--mut);padding:8px 2px}.bottom-nav .bn-item.active{transform:none;color:var(--pr3);background:var(--lens);border:1px solid color-mix(in srgb,var(--rim) 70%,transparent);box-shadow:inset 0 1.5px 0 var(--rim),0 3px 12px var(--gs)}
+.bottom-nav .bn-item.active::after{display:none}.bottom-nav .bn-item.active:active{transform:scale(.97)}
+.sidebar{left:0;margin-left:0;border-radius:0 30px 30px 0}.drawer-overlay{width:auto;left:0;margin:0;background:rgba(20,30,60,.25)}
+.sidebar .ni{color:var(--tl)}.sidebar .ni.active{background:var(--sel);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}
+.mb{border-radius:30px 30px 0 0;margin-bottom:0}.mb::after{content:"";position:absolute;top:8px;left:50%;width:38px;height:5px;margin-left:-19px;border-radius:3px;background:var(--bar);opacity:.35}
+.toast{bottom:calc(var(--bn-h) + 24px + var(--safe-b))}
+}
+/* ===== macOS (desktop) ===== */
+@media(min-width:701px){
+body.in{overflow:hidden}
+#menubar{display:none;position:fixed;z-index:3200;top:0;left:0;right:0;height:30px;align-items:center;gap:18px;padding:0 14px;font-size:13px;color:var(--td);border-radius:0;border-width:0 0 1px;background:var(--ga);box-shadow:inset 0 -1px 0 var(--rim),0 4px 18px var(--gs)}
+#menubar b{font-weight:700}#menubar .r{margin-left:auto;display:flex;gap:14px;align-items:center}#menubar .thb{width:22px;height:22px;font-size:11px}
+body.in #menubar{display:flex}
+.tbar{display:flex;position:absolute;z-index:6;top:0;left:0;right:0;height:42px;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--td);border-bottom:1px solid var(--bc);background:linear-gradient(180deg,var(--ga),var(--gb))}
+.tbar .tl{position:absolute;left:14px;display:flex;gap:8px}.tbar .tl i{width:13px;height:13px;border-radius:50%;cursor:pointer;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.5)}
+.tbar .tl i:nth-child(1){background:#ff5f57}.tbar .tl i:nth-child(2){background:#febc2e}.tbar .tl i:nth-child(3){background:#28c840}.tbar .thb{position:absolute;right:12px;width:26px;height:26px;font-size:12px}
+#appPage{position:fixed!important;z-index:100;left:max(36px,calc((100vw - 1320px)/2));right:max(36px,calc((100vw - 1320px)/2));top:46px;bottom:106px;max-width:none!important;min-height:0!important;margin:0!important;border-radius:18px;overflow:hidden;
+-webkit-backdrop-filter:blur(30px) saturate(190%);backdrop-filter:blur(30px) saturate(190%);box-shadow:inset 0 1.5px 0 var(--rim),0 0 0 .5px rgba(20,30,50,.12),0 40px 90px var(--gs),0 6px 18px rgba(20,30,50,.12);transition:all .35s cubic-bezier(.2,.8,.25,1)}
+#appPage.max{left:0;right:0;top:30px;bottom:0;border-radius:0}
+.sidebar{position:absolute!important;top:42px!important;left:0!important;margin:0!important;width:236px!important;height:auto!important;bottom:0;transform:none!important;border:0!important;border-right:1px solid var(--bc)!important;border-radius:0!important;box-shadow:none!important;-webkit-backdrop-filter:none;backdrop-filter:none;background:color-mix(in srgb,var(--ga) 55%,transparent);padding:10px 0 0}
+.sidebar .at{display:none}.sidebar .sui{display:flex!important;padding:6px 18px 12px;border-bottom:1px solid var(--bc)}.sidebar .sun,.sidebar .sur{color:var(--td)}.sidebar .sur{opacity:.6}
+.sidebar .sui div,.sidebar .ni span{display:block!important}
+.sidebar .ni{flex-direction:row!important;justify-content:flex-start!important;gap:10px;padding:8px 12px!important;margin:2px 10px!important;border-radius:10px!important;font-size:.88rem}
+.sidebar .ni i{margin:0;width:20px;font-size:.95rem}.sidebar .ni.active{background:var(--sel);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 3px 10px rgba(38,168,71,.35)}
+.mc{position:absolute;top:42px;left:236px;right:0;bottom:0;overflow:auto;margin:0!important;padding:0!important;min-height:0}
+.content{max-width:1180px;padding:24px 30px 44px}.app-header,.bottom-nav,.drawer-overlay{display:none!important}
+.kpi-grid{grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px}.kpi{padding:18px 20px;min-height:104px}.kpi h2{font-size:1.3rem}
+.mo{align-items:center;padding:16px}.mb{border-radius:22px;max-width:600px;animation:popm .25s cubic-bezier(.2,.9,.3,1.1)}@keyframes popm{from{opacity:0;transform:scale(.93)}}
+.toast{left:auto;right:26px;bottom:112px;max-width:360px}
+#dock{display:none;position:fixed;z-index:3100;left:50%;bottom:12px;transform:translateX(-50%);gap:10px;padding:8px 12px;border-radius:26px;align-items:flex-end}
+body.in #dock{display:flex}
+#dock .ni{position:relative;width:54px;height:54px;padding:0;margin:0;border:0;border-radius:15px;display:grid;place-items:center;font-size:24px;color:#fff;overflow:visible;
+background:linear-gradient(160deg,color-mix(in srgb,var(--c) 55%,#fff),var(--c));box-shadow:inset 0 1.5px 0 rgba(255,255,255,.75),inset 0 -2px 4px rgba(0,0,0,.18),0 8px 18px var(--gs);transition:transform .2s cubic-bezier(.3,1.5,.5,1)}
+#dock .ni:hover{transform:translateY(-12px) scale(1.18);background:linear-gradient(160deg,color-mix(in srgb,var(--c) 55%,#fff),var(--c))}
+#dock .ni::after{content:"";position:absolute;inset:1px;border-radius:inherit;background:linear-gradient(160deg,rgba(255,255,255,.5),transparent 45%);pointer-events:none}
+#dock .ni.active::before{content:"";position:absolute;bottom:-9px;left:50%;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:var(--td);opacity:.7}
+#dock .sp{width:1px;height:42px;background:var(--bc);align-self:center}
+#dock .ni span{display:none}
+#loginPage .lc{max-width:360px}
+}
+/* jam kaca realistis (SVG berpencahayaan) */
+.lk-t{font-size:0;line-height:0;background:none;-webkit-text-stroke:0;filter:none;color:inherit;margin:4px 0 0}
+.lk-t svg{display:block;overflow:visible;width:auto;height:clamp(104px,23vw,200px)}
+:root:not([data-theme=dark]) .lk-t svg{filter:drop-shadow(0 8px 16px rgba(30,60,140,.35))}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="glG" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="100"><stop offset="0" stop-color="#eaf7ff" stop-opacity=".14"/><stop offset=".5" stop-color="#7fb8ff" stop-opacity=".1"/><stop offset="1" stop-color="#2f7dff" stop-opacity=".42"/></linearGradient>
+<linearGradient id="glR" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="100"><stop offset="0" stop-color="#fff" stop-opacity=".98"/><stop offset=".5" stop-color="#d6ecff" stop-opacity=".5"/><stop offset="1" stop-color="#9ad8ff" stop-opacity=".9"/></linearGradient><filter id="glF" x="-14%" y="-22%" width="128%" height="156%" color-interpolation-filters="sRGB">
+<feGaussianBlur in="SourceAlpha" stdDeviation="1.4" result="b"/>
+<feGaussianBlur in="SourceAlpha" stdDeviation="3" result="b2"/>
+<feOffset in="SourceAlpha" dx="0" dy="7" result="so"/><feGaussianBlur in="so" stdDeviation="5" result="sb"/><feFlood flood-color="#0b2a70" flood-opacity=".38"/><feComposite in2="sb" operator="in" result="shadow"/>
+<feOffset in="SourceAlpha" dx="2" dy="13" result="co"/><feGaussianBlur in="co" stdDeviation="8" result="cb"/><feFlood flood-color="#4fb4ff" flood-opacity=".4"/><feComposite in2="cb" operator="in" result="caus"/>
+<feDiffuseLighting in="b2" surfaceScale="9" diffuseConstant="1.15" lighting-color="#cfe8ff" result="df"><feDistantLight azimuth="235" elevation="48"/></feDiffuseLighting>
+<feComposite in="df" in2="SourceAlpha" operator="in" result="dfc"/><feComponentTransfer in="dfc" result="dfs"><feFuncA type="linear" slope=".3"/></feComponentTransfer>
+<feSpecularLighting in="b" surfaceScale="8" specularConstant="1.5" specularExponent="32" lighting-color="#fff" result="s1"><feDistantLight azimuth="235" elevation="42"/></feSpecularLighting>
+<feComposite in="s1" in2="SourceAlpha" operator="in" result="s1c"/>
+<feSpecularLighting in="b" surfaceScale="8" specularConstant="1.1" specularExponent="18" lighting-color="#8fe0ff" result="s2"><feDistantLight azimuth="50" elevation="30"/></feSpecularLighting>
+<feComposite in="s2" in2="SourceAlpha" operator="in" result="s2c"/>
+<feOffset in="SourceAlpha" dx="-3.4" dy="-4" result="o1"/><feComposite in="SourceAlpha" in2="o1" operator="out" result="e1"/>
+<feFlood flood-color="#0f3fb8" flood-opacity=".85"/><feComposite in2="e1" operator="in" result="e1c"/><feGaussianBlur in="e1c" stdDeviation=".55" result="isd"/>
+<feOffset in="SourceAlpha" dx="-8" dy="-9" result="o3"/><feComposite in="SourceAlpha" in2="o3" operator="out" result="e3"/><feComposite in="e3" in2="e1" operator="out" result="e3b"/>
+<feFlood flood-color="#b8f0ff" flood-opacity=".85"/><feComposite in2="e3b" operator="in" result="e3c"/><feGaussianBlur in="e3c" stdDeviation=".9" result="cband"/>
+<feOffset in="SourceAlpha" dx="3.4" dy="4" result="o2"/><feComposite in="SourceAlpha" in2="o2" operator="out" result="e2"/>
+<feFlood flood-color="#fff" flood-opacity=".95"/><feComposite in2="e2" operator="in" result="e2c"/><feGaussianBlur in="e2c" stdDeviation=".5" result="ihl"/>
+<feMorphology in="SourceAlpha" operator="erode" radius="3.4" result="er3"/><feMorphology in="SourceAlpha" operator="erode" radius="2.4" result="er2"/>
+<feComposite in="er2" in2="er3" operator="out" result="ln"/><feFlood flood-color="#e8f6ff" flood-opacity=".5"/><feComposite in2="ln" operator="in" result="lnc"/><feGaussianBlur in="lnc" stdDeviation=".2" result="lnb"/>
+<feMorphology in="SourceAlpha" operator="erode" radius="1.2" result="er"/><feComposite in="SourceAlpha" in2="er" operator="out" result="rim"/>
+<feFlood flood-color="#fff" flood-opacity=".9"/><feComposite in2="rim" operator="in" result="rimc"/>
+<feOffset in="rim" dx="1" dy=".9" result="r1"/><feFlood flood-color="#4fe3ff" flood-opacity=".6"/><feComposite in2="r1" operator="in" result="dC"/>
+<feOffset in="rim" dx="-1" dy="-.9" result="r2"/><feFlood flood-color="#ff7ad9" flood-opacity=".45"/><feComposite in2="r2" operator="in" result="dM"/>
+<feGaussianBlur in="SourceAlpha" stdDeviation="6" result="gb"/><feFlood flood-color="#bfe4ff" flood-opacity=".35"/><feComposite in2="gb" operator="in" result="glow0"/><feComposite in="glow0" in2="SourceAlpha" operator="out" result="glow"/>
+<feMerge><feMergeNode in="caus"/><feMergeNode in="shadow"/><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/><feMergeNode in="dM"/><feMergeNode in="dC"/><feMergeNode in="isd"/><feMergeNode in="cband"/><feMergeNode in="s2c"/><feMergeNode in="lnb"/><feMergeNode in="ihl"/><feMergeNode in="s1c"/><feMergeNode in="rimc"/></feMerge></filter></defs></svg>
 
 <!-- LOGIN PAGE -->
 <div id="loginPage">
@@ -381,6 +526,7 @@ body{font-family:'Poppins','Roboto',sans-serif;}
 
 <script>
 'use strict';
+const _cv=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();const _th=()=>document.documentElement.dataset.theme==='dark'?'dark':'light';
 // ══════════════════════════════════════════════════
 //  DATABASE — struktur sesuai Google Sheets aktual
 // ══════════════════════════════════════════════════
@@ -863,6 +1009,7 @@ const PAGE_TITLES={dashboard:'Dashboard',inventory:'Inventory',suppliers:'Suppli
 function updateHeaderForPage(p){
   const h=document.getElementById('headerPageTitle');
   if(h) h.textContent=PAGE_TITLES[p]||'KopSUS App';
+  const tt=document.getElementById('tbTitle'); if(tt) tt.textContent=PAGE_TITLES[p]||'KopSUS App';
   const el=document.getElementById('pageContent');
   if(el){ el.classList.remove('page-enter'); void el.offsetWidth; el.classList.add('page-enter'); }
 }
@@ -895,7 +1042,7 @@ document.getElementById('modal').addEventListener('click',e=>{if(e.target===docu
 // ══════════════════════════════════════════════════
 function openLoginBackendSettings(){
   const body = `
-    <p style="color:#8fae9a;font-size:.85rem;margin-bottom:14px">
+    <p style="color:var(--mut);font-size:.85rem;margin-bottom:14px">
       Atur URL Web App (Google Apps Script) sumber data KopSUS App. Klik <strong>Test Koneksi</strong> untuk memastikan backend aktif, lalu <strong>Simpan</strong>.
     </p>
     <div class="fg2"><label>Backend URL</label>
@@ -1150,7 +1297,7 @@ async function pgDashboard(){
 
   const COLORS=['#22c55e','#d4af37','#60a5fa','#f87171','#a78bfa','#34d399','#fb923c','#e879f9'];
   const mkChart=(id,opts)=>{if(!document.querySelector(id))return;const c=new ApexCharts(document.querySelector(id),opts);c.render();charts.push(c);};
-  const axOpts={style:{colors:'#cfe8d6',fontSize:'11px'}};
+  const axOpts={style:{colors:_cv('--ch-t'),fontSize:'11px'}};
   const cd=chartData;
 
   mkChart('#dC1',{chart:{type:'area',height:280,toolbar:{show:false}},
@@ -1159,19 +1306,19 @@ async function pgDashboard(){
     fill:{type:'gradient',gradient:{shade:'dark',type:'vertical',opacityFrom:.7,opacityTo:.1}},
     xaxis:{categories:cd.salesTrend?.dates||[],labels:axOpts},
     yaxis:{labels:{formatter:v=>'Rp '+(v/1000000).toFixed(1)+'M',...axOpts}},
-    colors:['#22c55e'],tooltip:{theme:'dark'},grid:{borderColor:'#1c3d26',strokeDashArray:4},markers:{size:3}});
+    colors:['#22c55e'],tooltip:{theme:_th()},grid:{borderColor:_cv('--ch-g'),strokeDashArray:4},markers:{size:3}});
 
   mkChart('#dC2',{chart:{type:'bar',height:280,toolbar:{show:false}},
     series:[{data:cd.salesByLocation?.values||[]}],dataLabels:{enabled:false},
     plotOptions:{bar:{borderRadius:4,columnWidth:'70%'}},
     xaxis:{categories:cd.salesByLocation?.labels||[],labels:axOpts},
     yaxis:{labels:{formatter:v=>'Rp '+(v/1000000).toFixed(1)+'M',...axOpts}},
-    colors:['#22c55e'],tooltip:{theme:'dark'},grid:{borderColor:'#1c3d26',strokeDashArray:4}});
+    colors:['#22c55e'],tooltip:{theme:_th()},grid:{borderColor:_cv('--ch-g'),strokeDashArray:4}});
 
   if((cd.salesByCategory?.labels||[]).length)
     mkChart('#dC3',{chart:{type:'pie',height:280},series:cd.salesByCategory.values,labels:cd.salesByCategory.labels,
-      colors:COLORS,legend:{position:'bottom',labels:{colors:'#cfe8d6',fontSize:'11px'}},
-      tooltip:{theme:'dark',y:{formatter:v=>v+'%'}},stroke:{colors:['#081a0e']}});
+      colors:COLORS,legend:{position:'bottom',labels:{colors:_cv('--ch-t'),fontSize:'11px'}},
+      tooltip:{theme:_th(),y:{formatter:v=>v+'%'}},stroke:{colors:[_cv('--ch-s')]}});
 
   if((cd.topCustomers?.labels||[]).length)
     mkChart('#dC4',{chart:{type:'bar',height:300,toolbar:{show:false}},series:[{data:cd.topCustomers.values}],
@@ -1180,25 +1327,25 @@ async function pgDashboard(){
       xaxis:{categories:cd.topCustomers.labels,labels:{formatter:v=>'Rp '+(v/1000000).toFixed(1)+'M',...axOpts}},
       yaxis:{labels:axOpts},colors:['#22c55e'],
       fill:{type:'gradient',gradient:{shade:'dark',type:'horizontal',gradientToColors:['#d4af37'],opacityFrom:.95,opacityTo:.85}},
-      tooltip:{theme:'dark'},grid:{borderColor:'#1c3d26',strokeDashArray:4}});
+      tooltip:{theme:_th()},grid:{borderColor:_cv('--ch-g'),strokeDashArray:4}});
 
   mkChart('#dC5',{chart:{type:'donut',height:300},
     series:cd.purchaseByLocation?.values||[],labels:cd.purchaseByLocation?.labels||[],
     colors:COLORS,plotOptions:{pie:{donut:{size:'55%'}}},
-    legend:{position:'bottom',labels:{colors:'#cfe8d6',fontSize:'11px'}},
-    tooltip:{theme:'dark'},stroke:{colors:['#081a0e']}});
+    legend:{position:'bottom',labels:{colors:_cv('--ch-t'),fontSize:'11px'}},
+    tooltip:{theme:_th()},stroke:{colors:[_cv('--ch-s')]}});
 
   if((cd.purchaseByCategory?.series||[]).length)
     mkChart('#dC6',{chart:{type:'bar',height:300,stacked:true,toolbar:{show:false}},
       series:cd.purchaseByCategory.series,
       xaxis:{categories:cd.purchaseByCategory.years||[],labels:axOpts},
       yaxis:{labels:{formatter:v=>'Rp '+(v/1000000).toFixed(1)+'M',...axOpts}},
-      colors:COLORS,legend:{position:'bottom',labels:{colors:'#cfe8d6',fontSize:'11px'}},
-      tooltip:{theme:'dark'},grid:{borderColor:'#1c3d26',strokeDashArray:4},dataLabels:{enabled:false}});
+      colors:COLORS,legend:{position:'bottom',labels:{colors:_cv('--ch-t'),fontSize:'11px'}},
+      tooltip:{theme:_th()},grid:{borderColor:_cv('--ch-g'),strokeDashArray:4},dataLabels:{enabled:false}});
 
   if((cd.salesByCity||[]).length)
     mkChart('#dC7',{chart:{type:'treemap',height:280},series:[{data:cd.salesByCity}],
-      colors:['#22c55e'],dataLabels:{style:{colors:['#e8f5e9'],fontSize:'11px'}},tooltip:{theme:'dark'}});
+      colors:['#22c55e'],dataLabels:{style:{colors:[_cv('--ch-l')],fontSize:'11px'}},tooltip:{theme:_th()}});
 }
 
 // ══════════════════════════════════════════════════
@@ -1331,7 +1478,7 @@ async function pgViewerSales(){
 </div>`;
 
   const COLORS=['#22c55e','#d4af37','#60a5fa','#f87171','#a78bfa','#34d399','#fb923c','#e879f9','#38bdf8','#f472b6'];
-  const axStyle={style:{colors:'#cfe8d6',fontSize:'11px'}};
+  const axStyle={style:{colors:_cv('--ch-t'),fontSize:'11px'}};
 
   // Chart 1: Produk Tersering (horizontal bar, sorted desc)
   const c1labels=(charts.topItems?.labels||[]).slice().reverse();
@@ -1346,7 +1493,7 @@ async function pgViewerSales(){
       yaxis:{labels:{...axStyle,style:{...axStyle.style,fontSize:'10px'}}},
       colors:['#22c55e'],
       fill:{type:'gradient',gradient:{shade:'dark',type:'horizontal',gradientToColors:['#d4af37'],opacityFrom:.95,opacityTo:.85}},
-      tooltip:{theme:'dark'},grid:{borderColor:'#1c3d26',strokeDashArray:4}
+      tooltip:{theme:_th()},grid:{borderColor:_cv('--ch-g'),strokeDashArray:4}
     }).render().catch(()=>{});
   }
 
@@ -1360,9 +1507,9 @@ async function pgViewerSales(){
       series:c2vals,labels:c2labels,colors:COLORS,
       plotOptions:{pie:{donut:{size:'55%',labels:{show:true,total:{show:true,label:'Total',
         formatter:()=>fmtRpK(c2total),color:'#d4af37',fontSize:'13px'}}}}},
-      legend:{position:'bottom',labels:{colors:'#cfe8d6',fontSize:'10px'}},
-      tooltip:{theme:'dark',y:{formatter:v=>fmtRpK(v)}},
-      stroke:{colors:['#081a0e'],width:2},dataLabels:{enabled:false}
+      legend:{position:'bottom',labels:{colors:_cv('--ch-t'),fontSize:'10px'}},
+      tooltip:{theme:_th(),y:{formatter:v=>fmtRpK(v)}},
+      stroke:{colors:[_cv('--ch-s')],width:2},dataLabels:{enabled:false}
     }).render().catch(()=>{});
   }
 }
@@ -1393,16 +1540,16 @@ async function pgViewerReceipts(){
 
   const rincBox=document.getElementById('vRincian');
   if(!rincian || !rincian.length){
-    rincBox.innerHTML='<p style="color:#8fae9a;padding:12px">Belum ada rincian belanja.</p>';
+    rincBox.innerHTML='<p style="color:var(--mut);padding:12px">Belum ada rincian belanja.</p>';
   } else {
     rincBox.innerHTML=rincian.map(rc=>`
 <div style="margin-bottom:16px;border:1px solid var(--bc);border-radius:8px;overflow:hidden">
   <div style="background:var(--pr2);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
     <div>
       <span style="color:var(--sc);font-weight:600;font-size:.88rem">${rc.resi||rc.trxId||rc.soId||'–'}</span>
-      ${rc.trxDate?`<span style="color:#8fae9a;font-size:.78rem;margin-left:10px">${rc.trxDate}</span>`:''}
+      ${rc.trxDate?`<span style="color:var(--mut);font-size:.78rem;margin-left:10px">${rc.trxDate}</span>`:''}
       ${rc.pmtMode?`<span class="badge bb" style="margin-left:8px;font-size:.7rem">${rc.pmtMode}</span>`:''}
-      ${rc.alamatPelanggan?`<div style="color:#8fae9a;font-size:.74rem;margin-top:2px">${rc.alamatPelanggan}</div>`:''}
+      ${rc.alamatPelanggan?`<div style="color:var(--mut);font-size:.74rem;margin-top:2px">${rc.alamatPelanggan}</div>`:''}
     </div>
     <div style="color:var(--pr);font-weight:700;font-size:.95rem">${fmtRpK(rc.amountReceived)}</div>
   </div>
@@ -1414,7 +1561,7 @@ async function pgViewerReceipts(){
       <td>${(it.qty||0).toLocaleString('id-ID')}</td>
       <td>${fmtRpK(it.harga)}</td><td>${fmtRpK(it.total)}</td>
     </tr>`).join('')}</tbody>
-  </table></div>` : '<p style="color:#8fae9a;font-size:.8rem;padding:10px 14px">– Detail item tidak tersedia –</p>'}
+  </table></div>` : '<p style="color:var(--mut);font-size:.8rem;padding:10px 14px">– Detail item tidak tersedia –</p>'}
 </div>`).join('');
   }
 }
@@ -1461,7 +1608,7 @@ function renderInv(){
     <td>${rr?'<span class="badge br">Yes</span>':'<span class="badge bg">No</span>'}</td>
     <td><button class="btn btn-ol btn-sm" data-edit="${id}"><i class="fas fa-edit"></i></button>
         <button class="btn btn-dn btn-sm" data-del="${id}"><i class="fas fa-trash"></i></button></td>
-  </tr>`;}).join('')||'<tr><td colspan="11" style="text-align:center;padding:20px;color:#8fae9a">Tidak ada data</td></tr>';
+  </tr>`;}).join('')||'<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--mut)">Tidak ada data</td></tr>';
   document.querySelectorAll('#invTb [data-edit]').forEach(b=>b.addEventListener('click',()=>openEditInv(b.dataset.edit)));
   document.querySelectorAll('#invTb [data-del]').forEach(b=>b.addEventListener('click',()=>delInv(b.dataset.del)));
   renderPager('invPg',total,invPage,p=>{invPage=p;renderInv();});
@@ -1586,7 +1733,7 @@ function renderSup(){
     <td><span class="badge ${bal>0?'br':'bg'}">${fmtRp(bal)}</span></td>
     <td><button class="btn btn-ol btn-sm" data-edit="${id}"><i class="fas fa-edit"></i></button>
         <button class="btn btn-dn btn-sm" data-del="${id}"><i class="fas fa-trash"></i></button></td>
-  </tr>`}).join('')||'<tr><td colspan="10" style="text-align:center;padding:20px;color:#8fae9a">Tidak ada data</td></tr>';
+  </tr>`}).join('')||'<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--mut)">Tidak ada data</td></tr>';
   document.querySelectorAll('#supTb [data-edit]').forEach(b=>b.addEventListener('click',()=>openEditSup(b.dataset.edit)));
   document.querySelectorAll('#supTb [data-del]').forEach(b=>b.addEventListener('click',()=>delSup(b.dataset.del)));
   renderPager('supPg',total,supPage,p=>{supPage=p;renderSup();});
@@ -1727,7 +1874,6 @@ async function pgWhatsApp(){
       </div>
       <div style="font-size:12px;opacity:.72;margin-top:9px">Token disimpan di browser Admin ini, tetapi pengiriman aktual dilakukan lewat backend (Apps Script) — bukan langsung dari browser — karena WhatsApp Cloud API memblokir request langsung dari domain lain (CORS). Pastikan action <b>sendWhatsApp</b> sudah ada di Code.gs backend Anda. Jika belum siap, gunakan tombol <b>Buka WA</b> di tabel sebagai jalan pintas manual (selalu berfungsi, tanpa API).</div>
     </div>
-    ${_waFinanceWarning?`<div class="tc" style="margin-bottom:14px;padding:12px 14px;border:1px solid rgba(239,68,68,.35);background:rgba(239,68,68,.08);color:#fca5a5;font-size:13px">${esc(_waFinanceWarning)}</div>`:''}
     <div class="ta" style="gap:10px;align-items:center">
       <input class="si" id="waSearch" placeholder="Cari nama / nomor / ID pelanggan...">
       <button class="btn btn-pr" id="waSelectAll"><i class="fas fa-check-double"></i> Pilih Semua</button>
@@ -1814,29 +1960,15 @@ function waThisMonthSpend(id){
 // contoh yang saya berikan di chat). Kalau action itu belum ada di backend, kode ini
 // otomatis jatuh ke cara lama (baca kolom di Customers) supaya tidak error.
 let _waFinanceMap={};
-let _waFinanceWarning='';
 async function loadWaFinanceMap(){
   _waFinanceMap={};
-  _waFinanceWarning='';
   if(!USE_BACKEND) return;
   try{
     const res=await api('getMembersFinance',{});
     if(res&&res.ok&&Array.isArray(res.data)){
       res.data.forEach(m=>{ _waFinanceMap[String(m.customerId||m['Customer ID']||m.id)]=m; });
-      // Diagnostik: cek di console (F12) untuk lihat apakah datanya benar-benar
-      // nyambung ke spreadsheet Simpanan Viewer.
-      console.info('[WA] getMembersFinance: '+res.matched+'/'+res.viewerRows+' baris Sheet1 (Viewer) berhasil dicocokkan ke Customer ID. Header Sheet1:',res.viewerHeaders);
-      if(res.viewerRows===0){
-        _waFinanceWarning='⚠️ Sheet1 di spreadsheet Simpanan Viewer kosong atau tidak ditemukan — Simpanan Pokok/Wajib/SHU tidak akan pernah terisi sampai data diisi di sana.';
-      } else if(res.matched===0){
-        _waFinanceWarning='⚠️ Tidak ada Customer ID yang cocok dengan kolom NIK/Code Pelanggan di Sheet1 (Viewer). Cek format ID-nya sama persis (lihat console/F12 untuk daftar header Sheet1).';
-      }
-      if(_waFinanceWarning) console.warn('[WA] '+_waFinanceWarning);
-    } else if(res && !res.ok){
-      _waFinanceWarning='⚠️ Gagal memuat data finansial anggota: '+(res.error||'error tidak diketahui')+'. Kemungkinan action \'getMembersFinance\' belum ter-deploy di backend (perlu Manage deployments → Edit → New version).';
-      console.warn('[WA] getMembersFinance error:',res.error);
     }
-  }catch(e){ _waFinanceWarning='⚠️ Tidak bisa menghubungi backend untuk data finansial: '+e.message; console.warn('[WA] getMembersFinance belum tersedia di backend:',e.message); }
+  }catch(e){ console.warn('[WA] getMembersFinance belum tersedia di backend:',e.message); }
 }
 function waCustomerInfo(r){
   const id=String(waField(r,'Customer ID','id'));
@@ -2015,7 +2147,7 @@ function renderCus(){
     <td><span class="badge ${bal>0?'br':'bg'}">${fmtRp(bal)}</span></td>
     <td><button class="btn btn-ol btn-sm" data-edit="${id}"><i class="fas fa-edit"></i></button>
         <button class="btn btn-dn btn-sm" data-del="${id}"><i class="fas fa-trash"></i></button></td>
-  </tr>`}).join('')||'<tr><td colspan="10" style="text-align:center;padding:20px;color:#8fae9a">Tidak ada data</td></tr>';
+  </tr>`}).join('')||'<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--mut)">Tidak ada data</td></tr>';
   document.querySelectorAll('#cusTb [data-edit]').forEach(b=>b.addEventListener('click',()=>openEditCus(b.dataset.edit)));
   document.querySelectorAll('#cusTb [data-del]').forEach(b=>b.addEventListener('click',()=>delCus(b.dataset.del)));
   renderPager('cusPg',total,cusPage,p=>{cusPage=p;renderCus();});
@@ -2136,7 +2268,7 @@ function renderPO(){
     <td>${badge(fv(r,'PMT Status','pmtStatus'))}</td><td>${badge(fv(r,'Shipping Status','shippingStatus'))}</td>
     <td><button class="btn btn-ol btn-sm" data-edit="${id}"><i class="fas fa-edit"></i></button>
         <button class="btn btn-dn btn-sm" data-del="${id}"><i class="fas fa-trash"></i></button></td>
-  </tr>`}).join('')||'<tr><td colspan="13" style="text-align:center;padding:20px;color:#8fae9a">Tidak ada data</td></tr>';
+  </tr>`}).join('')||'<tr><td colspan="13" style="text-align:center;padding:20px;color:var(--mut)">Tidak ada data</td></tr>';
   document.querySelectorAll('#poTb [data-edit]').forEach(b=>b.addEventListener('click',()=>openEditPO(b.dataset.edit)));
   document.querySelectorAll('#poTb [data-del]').forEach(b=>b.addEventListener('click',()=>delPO(b.dataset.del)));
   renderPager('poPg',total,poPage,p=>{poPage=p;renderPO();});
@@ -2151,7 +2283,7 @@ function renderPD(q){
     <td>${fv(r,'Item Name','itemName')}</td><td>${fv(r,'Item Type','itemType')}</td><td>${fv(r,'Item Category','itemCategory')}</td>
     <td>${fmtNum(fn(r,'QTY Purchased','qtyPurchased'))}</td>
     <td>${fmtRp(fn(r,'Unit Price','unitPrice'))}</td><td>${fmtRp(fn(r,'Total Purchase Price','totalPurchasePrice'))}</td>
-  </tr>`).join('')||'<tr><td colspan="12" style="text-align:center;padding:20px;color:#8fae9a">Tidak ada data</td></tr>';
+  </tr>`).join('')||'<tr><td colspan="12" style="text-align:center;padding:20px;color:var(--mut)">Tidak ada data</td></tr>';
 }
 function poForm(d={}){
   const supOpts=_supData.map(s=>`<option value="${fv(s,'Supplier ID','id')}" data-name="${fv(s,'Supplier Name','name')}" data-state="${fv(s,'State','state')}" data-city="${fv(s,'City','city')}"${fv(s,'Supplier ID','id')===fv(d,'Supplier ID','supplierId')?' selected':''}>${fv(s,'Supplier Name','name')}</option>`).join('');
@@ -2296,7 +2428,7 @@ function renderSO(){
     <td>${badge(fv(r,'Receipt Status','receiptStatus'))}</td>
     <td><button class="btn btn-ol btn-sm" data-view="${id}"><i class="fas fa-eye"></i></button>
         <button class="btn btn-dn btn-sm" data-del="${id}"><i class="fas fa-trash"></i></button></td>
-  </tr>`}).join('')||'<tr><td colspan="12" style="text-align:center;padding:20px;color:#8fae9a">Tidak ada data</td></tr>';
+  </tr>`}).join('')||'<tr><td colspan="12" style="text-align:center;padding:20px;color:var(--mut)">Tidak ada data</td></tr>';
   document.querySelectorAll('#soTb [data-view]').forEach(b=>b.addEventListener('click',()=>viewSODetails(b.dataset.view)));
   document.querySelectorAll('#soTb [data-del]').forEach(b=>b.addEventListener('click',()=>delSO(b.dataset.del)));
   renderPager('soPg',total,soPage,p=>{soPage=p;renderSO();});
@@ -2312,7 +2444,7 @@ function renderSD(q){
     <td>${fmtNum(fn(r,'QTY Sold','qtySold'))}</td><td>${fmtRp(fn(r,'Unit Price','unitPrice'))}</td>
     <td>${fmtRp(fn(r,'Price Incl Tax','priceInclTax'))}</td><td>${fmtRp(fn(r,'Shipping Fees','shippingFees'))}</td>
     <td>${fmtRp(fn(r,'Total Sales Price','totalSalesPrice'))}</td>
-  </tr>`).join('')||'<tr><td colspan="15" style="text-align:center;padding:20px;color:#8fae9a">Tidak ada data</td></tr>';
+  </tr>`).join('')||'<tr><td colspan="15" style="text-align:center;padding:20px;color:var(--mut)">Tidak ada data</td></tr>';
 }
 function viewSODetails(soId){
   const so=_soData.find(x=>String(fv(x,'SO ID','soId'))===String(soId));if(!so)return;
@@ -2336,11 +2468,11 @@ function viewSODetails(soId){
 <tbody>${dets.map(d=>`<tr><td>${fv(d,'Detail ID','detailId')}</td><td>${fv(d,'Item Name','itemName')}</td><td>${fv(d,'Item Type','itemType')}</td>
   <td>${fmtNum(fn(d,'QTY Sold','qtySold'))}</td><td>${fmtRp(fn(d,'Unit Price','unitPrice'))}</td><td>${fmtRp(fn(d,'Price Incl Tax','priceInclTax'))}</td>
   <td>${fmtRp(fn(d,'Shipping Fees','shippingFees'))}</td><td>${fmtRp(fn(d,'Total Sales Price','totalSalesPrice'))}</td></tr>`).join('')||
-  '<tr><td colspan="8" style="text-align:center;color:#8fae9a">Tidak ada detail</td></tr>'}</tbody>
+  '<tr><td colspan="8" style="text-align:center;color:var(--mut)">Tidak ada detail</td></tr>'}</tbody>
 </table></div></div>`,null);
 }
 function soBuilderHTML(){
-  if(!soBuilderRows.length) return'<p style="color:#8fae9a;font-size:.8rem;padding:6px">Belum ada item.</p>';
+  if(!soBuilderRows.length) return'<p style="color:var(--mut);font-size:.8rem;padding:6px">Belum ada item.</p>';
   return`<table style="margin-top:6px;width:100%"><thead><tr><th>Item</th><th>QTY</th><th>Unit Price</th><th>Price+Tax</th><th>Ship</th><th>Total</th><th></th></tr></thead>
   <tbody>${soBuilderRows.map((r,i)=>`<tr><td>${r.itemName}</td><td>${r.qtySold}</td><td>${fmtRp(r.unitPrice)}</td>
   <td>${fmtRp(r.priceInclTax)}</td><td>${fmtRp(r.shippingFees)}</td><td>${fmtRp(r.totalSalesPrice)}</td>
@@ -2497,7 +2629,7 @@ function renderRC(){
     <td>${fv(r,'PMT Mode','pmtMode')}</td><td>${fmtRp(fn(r,'Amount Received','amountReceived'))}</td>
     <td><button class="btn btn-ol btn-sm" data-edit="${id}"><i class="fas fa-edit"></i></button>
         <button class="btn btn-dn btn-sm" data-del="${id}"><i class="fas fa-trash"></i></button></td>
-  </tr>`}).join('')||'<tr><td colspan="11" style="text-align:center;padding:20px;color:#8fae9a">Tidak ada data</td></tr>';
+  </tr>`}).join('')||'<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--mut)">Tidak ada data</td></tr>';
   document.querySelectorAll('#rcTb [data-edit]').forEach(b=>b.addEventListener('click',()=>openEditRC(b.dataset.edit)));
   document.querySelectorAll('#rcTb [data-del]').forEach(b=>b.addEventListener('click',()=>delRC(b.dataset.del)));
   renderPager('rcPg',total,rcPage,p=>{rcPage=p;renderRC();});
@@ -2621,7 +2753,7 @@ function renderPT(){
     <td>${fv(r,'PMT Mode','pmtMode')}</td><td>${fmtRp(fn(r,'Amount Paid','amountPaid'))}</td>
     <td><button class="btn btn-ol btn-sm" data-edit="${id}"><i class="fas fa-edit"></i></button>
         <button class="btn btn-dn btn-sm" data-del="${id}"><i class="fas fa-trash"></i></button></td>
-  </tr>`}).join('')||'<tr><td colspan="11" style="text-align:center;padding:20px;color:#8fae9a">Tidak ada data</td></tr>';
+  </tr>`}).join('')||'<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--mut)">Tidak ada data</td></tr>';
   document.querySelectorAll('#ptTb [data-edit]').forEach(b=>b.addEventListener('click',()=>openEditPT(b.dataset.edit)));
   document.querySelectorAll('#ptTb [data-del]').forEach(b=>b.addEventListener('click',()=>delPT(b.dataset.del)));
   renderPager('ptPg',total,ptPage,p=>{ptPage=p;renderPT();});
@@ -2767,7 +2899,7 @@ function renderRptSales(q){
       <td>${fmtRp(fn(r,'Price Incl Tax','priceInclTax'))}</td>
       <td>${fmtRp(fn(r,'Shipping Fees','shippingFees'))}</td>
       <td>${fmtRp(fn(r,'Total Sales Price','totalSalesPrice'))}</td></tr>`).join('')||
-    '<tr><td colspan="12" style="text-align:center;color:#8fae9a;padding:20px">Tidak ada data</td></tr>'}</tbody>
+    '<tr><td colspan="12" style="text-align:center;color:var(--mut);padding:20px">Tidak ada data</td></tr>'}</tbody>
   </table></div>
 </div>`;
   wireRptFilter('rptS',renderRptSales);
@@ -2796,7 +2928,7 @@ function renderRptPurchase(q){
       <td>${fmtNum(fn(r,'QTY Purchased','qtyPurchased'))}</td>
       <td>${fmtRp(fn(r,'Unit Price','unitPrice'))}</td>
       <td>${fmtRp(fn(r,'Total Purchase Price','totalPurchasePrice'))}</td></tr>`).join('')||
-    '<tr><td colspan="10" style="text-align:center;color:#8fae9a;padding:20px">Tidak ada data</td></tr>'}</tbody>
+    '<tr><td colspan="10" style="text-align:center;color:var(--mut);padding:20px">Tidak ada data</td></tr>'}</tbody>
   </table></div>
 </div>`;
   wireRptFilter('rptP',renderRptPurchase);
@@ -2826,7 +2958,7 @@ function renderRptInventory(q){
       <td>${fmtNum(fn(r,'QTY Purchased','qtyPurchased'))}</td><td>${fmtNum(fn(r,'QTY Sold','qtySold'))}</td>
       <td><span class="badge ${rem<=rl?'br':'bg'}">${fmtNum(rem)}</span></td>
       <td>${fmtNum(rl)}</td><td>${rr?'<span class="badge br">Yes</span>':'<span class="badge bg">No</span>'}</td></tr>`;}).join('')||
-    '<tr><td colspan="10" style="text-align:center;color:#8fae9a;padding:20px">Tidak ada data</td></tr>'}</tbody>
+    '<tr><td colspan="10" style="text-align:center;color:var(--mut);padding:20px">Tidak ada data</td></tr>'}</tbody>
   </table></div>
 </div>`;
   wireRptFilter('rptI',renderRptInventory);
@@ -2902,7 +3034,7 @@ function renderSettingsBackend(){
   const el=document.getElementById('stBackend');if(!el)return;
   el.innerHTML=`<div class="tc">
 <h3>Backend URL (Google Apps Script)</h3>
-<p style="color:#8fae9a;font-size:.85rem;margin-bottom:16px">
+<p style="color:var(--mut);font-size:.85rem;margin-bottom:16px">
   Paste URL deployment GAS Anda di sini agar aplikasi membaca data dari Google Sheets.<br>
   Format URL: <code style="background:rgba(255,255,255,.05);padding:2px 6px;border-radius:4px">https://script.google.com/macros/s/...../exec</code>
 </p>
@@ -2926,7 +3058,7 @@ function renderSettingsBackend(){
     <li>Copy URL <code>.../exec</code> → paste di atas → Simpan URL</li>
     <li>Test Koneksi → jika OK, login ulang dengan akun dari Google Sheets</li>
   </ol>
-  <p style="color:#8fae9a;font-size:.8rem;margin-top:8px">
+  <p style="color:var(--mut);font-size:.8rem;margin-top:8px">
     ⚠️ Setelah deploy, buka Spreadsheet → Data → Named ranges dan pastikan semua named ranges sudah dibuat (atau jalankan <code>setupNamedRanges()</code> dari editor GAS).
   </p>
 </div>
@@ -2971,7 +3103,7 @@ async function renderSettingsDim(){
   const el=document.getElementById('stDim');if(!el)return;
   const dims=await getDimensionsData();
   el.innerHTML=`<div class="tc"><h3>Master Dimensions (RANGEDIMENSIONS)</h3>
-<p style="color:#8fae9a;font-size:.82rem;margin-bottom:14px">Kelola nilai master: Item Type, Item Category, Item Subcategory, State, City, PMT Mode, PMT Status, Shipping Status</p>
+<p style="color:var(--mut);font-size:.82rem;margin-bottom:14px">Kelola nilai master: Item Type, Item Category, Item Subcategory, State, City, PMT Mode, PMT Status, Shipping Status</p>
 ${Object.entries(dims).map(([col,vals])=>`
 <div style="margin-bottom:14px;border:1px solid var(--bc);border-radius:8px;padding:12px">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -3042,7 +3174,7 @@ function renderSettingsComp(){
   <div class="fg2"><label>Company Logo URL</label><input id="cpLogo" value="${COMPANY.companyLogoUrl}" placeholder="https://..."></div>
 </div>
 <div style="margin-top:12px"><button class="btn btn-pr" id="btnSaveComp"><i class="fas fa-save"></i> Simpan</button></div>
-<p style="color:#8fae9a;font-size:.78rem;margin-top:10px">ℹ️ Profil perusahaan disimpan di script properties GAS, bukan di spreadsheet. Perubahan di sini hanya berlaku di memori browser sesi ini.</p>
+<p style="color:var(--mut);font-size:.78rem;margin-top:10px">ℹ️ Profil perusahaan disimpan di script properties GAS, bukan di spreadsheet. Perubahan di sini hanya berlaku di memori browser sesi ini.</p>
 </div>`;
   document.getElementById('btnSaveComp').addEventListener('click',()=>{
     COMPANY.companyName=document.getElementById('cpName').value;
@@ -3105,7 +3237,7 @@ function renderUsersTable(){
     <td>${fv(u,'Linked Customer ID','linkedCustomerId')||'–'}</td>
     <td><button class="btn btn-ol btn-sm" data-edit="${uid}"><i class="fas fa-edit"></i></button>
         ${username!=='admin'?`<button class="btn btn-dn btn-sm" data-del="${uid}"><i class="fas fa-trash"></i></button>`:''}
-    </td></tr>`}).join('')||'<tr><td colspan="9" style="text-align:center;color:#8fae9a;padding:20px">Tidak ada user</td></tr>';
+    </td></tr>`}).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--mut);padding:20px">Tidak ada user</td></tr>';
   document.querySelectorAll('#usersTb [data-edit]').forEach(b=>b.addEventListener('click',()=>openEditUser(b.dataset.edit)));
   document.querySelectorAll('#usersTb [data-del]').forEach(b=>b.addEventListener('click',()=>delUser(b.dataset.del)));
 }
@@ -3195,6 +3327,73 @@ async function delUser(uid){
   invalidateCache('users');_userData=await getUsersData();
   toast('User dihapus!');renderUsersTable();
 }
+</script>
+<script>
+(function(){
+const GP={"0": "M46 100Q33.7 100 25 94.1Q16.3 88.2 11.7 77Q7 65.9 7 50.1Q7 34.3 11.7 23.1Q16.3 11.9 25 5.9Q33.7 0 46 0Q58.3 0 67 6Q75.7 12 80.3 23.1Q85 34.3 85 50.1Q85 65.9 80.4 77Q75.8 88.2 67 94.1Q58.3 100 46 100ZM46 83.5Q52 83.5 56.1 79.5Q60.3 75.6 62.5 68.2Q64.7 60.7 64.7 50.1Q64.7 39.3 62.5 31.8Q60.3 24.3 56.1 20.4Q52 16.5 46 16.5Q40 16.5 35.8 20.4Q31.7 24.4 29.5 31.9Q27.3 39.3 27.3 50.1Q27.3 60.7 29.5 68.2Q31.7 75.6 35.8 79.5Q40 83.5 46 83.5Z", "1": "M67.4 1.3V98.7H47.5V18.9H46.8L24.6 34.7V16.4L46.1 1.3Z", "2": "M12 98.7V84.3L46.5 52Q51 47.6 54 44.2Q57 40.7 58.6 37.3Q60.2 33.9 60.2 30Q60.2 25.6 58.3 22.5Q56.3 19.3 52.9 17.6Q49.5 15.9 45.2 15.9Q40.6 15.9 37.2 17.8Q33.8 19.6 32 23Q30.2 26.4 30.2 31.2H11.1Q11.1 21.7 15.4 14.7Q19.8 7.6 27.5 3.8Q35.2 0 45.3 0Q55.6 0 63.3 3.7Q71 7.4 75.3 13.9Q79.6 20.3 79.6 28.8Q79.6 34.2 77.5 39.5Q75.3 44.8 69.9 51.3Q64.4 57.9 54.4 67.1L39.7 81.6V82.3H80.9V98.7Z", "3": "M45.7 100Q35.1 100 26.9 96.4Q18.7 92.7 14 86.3Q9.2 79.8 9.1 71.4H29.2Q29.4 75 31.6 77.7Q33.7 80.5 37.5 82Q41.2 83.5 45.8 83.5Q50.6 83.5 54.3 81.8Q57.9 80.1 60 77.1Q62.1 74.1 62.1 70.1Q62.1 66.1 59.9 63Q57.7 59.9 53.7 58.2Q49.6 56.5 43.9 56.5H34.9V41.6H43.9Q48.7 41.6 52.3 40Q55.9 38.3 58 35.4Q60 32.5 60 28.6Q60 24.8 58.3 22Q56.5 19.2 53.3 17.5Q50.2 15.9 45.9 15.9Q41.7 15.9 38.1 17.5Q34.6 19 32.4 21.8Q30.3 24.5 30.2 28.3H11Q11.1 20 15.7 13.6Q20.3 7.2 28.3 3.6Q36.2 0 46 0Q56 0 63.5 3.7Q71.1 7.3 75.2 13.5Q79.4 19.7 79.4 27.3Q79.4 35.5 74.3 41Q69.2 46.5 61.1 48V48.8Q68.2 49.7 73.1 52.7Q77.9 55.8 80.4 60.6Q82.9 65.4 82.9 71.4Q82.9 79.7 78.1 86.1Q73.4 92.6 65 96.3Q56.6 100 45.7 100Z", "4": "M7 81.4V65.6L47.8 1.3H72.8V65.3H85V81.4H72.8V98.7H53.6V81.4ZM54 65.3V23.3H53.3L27.2 64.5V65.3Z", "5": "M45.4 100Q35.4 100 27.6 96.3Q19.8 92.6 15.3 86.1Q10.7 79.7 10.5 71.4H30Q30.2 75.2 32.3 78.1Q34.4 81 37.9 82.6Q41.3 84.2 45.4 84.2Q50.3 84.2 54.1 82Q57.9 79.8 60 75.9Q62.2 72 62.2 66.8Q62.2 61.6 60 57.6Q57.8 53.6 54 51.4Q50.2 49.2 45.1 49.2Q40.7 49.2 36.7 50.9Q32.7 52.6 30.5 55.6L12.6 52.4L17.2 1.3H76.2V17.8H33.7L31.3 42.4H31.8Q34.4 38.9 39.5 36.6Q44.7 34.3 50.9 34.3Q57.5 34.3 63.1 36.7Q68.7 39 72.8 43.3Q76.9 47.6 79.2 53.5Q81.5 59.3 81.5 66.3Q81.5 76.1 77 83.7Q72.4 91.3 64.3 95.7Q56.2 100 45.4 100Z", "6": "M47.2 100Q39.8 100 32.9 97.5Q26 95 20.5 89.5Q15.1 84 11.8 74.8Q8.6 65.7 8.6 52.3Q8.6 40 11.4 30.3Q14.1 20.7 19.3 13.9Q24.5 7.1 31.7 3.5Q39 0 47.9 0Q57.5 0 64.9 3.8Q72.3 7.5 76.8 13.9Q81.4 20.3 82.3 28.3H62.7Q61.5 23.1 57.6 20.2Q53.7 17.2 47.9 17.2Q41.5 17.2 37.1 21Q32.7 24.8 30.5 31.7Q28.3 38.7 28.3 48.3H28.9Q31.1 44.1 34.8 41Q38.5 37.9 43.3 36.3Q48.1 34.7 53.4 34.7Q62 34.7 68.7 38.7Q75.5 42.7 79.4 49.9Q83.4 57 83.4 66.1Q83.4 76 78.8 83.7Q74.2 91.3 66.1 95.7Q58 100 47.2 100ZM47.1 84.2Q51.9 84.2 55.7 81.9Q59.5 79.5 61.7 75.6Q63.9 71.6 63.9 66.7Q63.9 61.8 61.8 57.8Q59.6 53.9 55.8 51.6Q52 49.3 47.2 49.3Q43.6 49.3 40.5 50.7Q37.5 52 35.2 54.4Q32.8 56.9 31.6 60Q30.3 63.1 30.3 66.7Q30.3 71.5 32.4 75.5Q34.6 79.4 38.4 81.8Q42.2 84.2 47.1 84.2Z", "7": "M18.6 98.7 59.2 18.4V17.8H12V1.3H80V18L39.4 98.7Z", "8": "M45.9 100Q35 100 26.6 96.4Q18.2 92.8 13.4 86.6Q8.5 80.4 8.5 72.5Q8.5 66.5 11.3 61.3Q14.1 56.2 18.8 52.8Q23.6 49.3 29.5 48.4V47.8Q21.8 46.1 16.9 40.1Q12.1 34.1 12.1 26.1Q12.1 18.6 16.5 12.7Q20.8 6.8 28.5 3.4Q36.1 0 45.9 0Q55.7 0 63.4 3.4Q71 6.8 75.4 12.7Q79.9 18.6 79.9 26.1Q79.9 34.1 75 40.1Q70.1 46.1 62.5 47.8V48.4Q68.3 49.3 73 52.8Q77.8 56.2 80.6 61.3Q83.5 66.5 83.5 72.5Q83.5 80.4 78.6 86.6Q73.8 92.8 65.3 96.4Q56.8 100 45.9 100ZM45.9 85.2Q51 85.2 54.7 83.4Q58.4 81.6 60.5 78.4Q62.6 75.2 62.6 71Q62.6 66.7 60.4 63.4Q58.3 60.1 54.5 58.1Q50.8 56.2 45.9 56.2Q41.1 56.2 37.3 58.1Q33.6 60 31.4 63.3Q29.3 66.6 29.3 71Q29.3 75.2 31.3 78.4Q33.4 81.6 37.2 83.4Q41 85.2 45.9 85.2ZM45.9 41.6Q50.1 41.6 53.4 39.9Q56.6 38.2 58.5 35.2Q60.3 32.2 60.3 28.3Q60.3 24.4 58.5 21.4Q56.7 18.5 53.4 16.9Q50.2 15.2 45.9 15.2Q41.7 15.2 38.5 16.9Q35.2 18.5 33.4 21.4Q31.6 24.4 31.6 28.3Q31.6 32.2 33.4 35.2Q35.2 38.2 38.5 39.9Q41.8 41.6 45.9 41.6Z", "9": "M44.1 100.1Q34.5 100.1 27 96.3Q19.6 92.5 15.1 86.1Q10.6 79.6 9.6 71.6H29.4Q30.5 76.8 34.4 79.9Q38.3 82.9 44.1 82.9Q50.5 82.9 54.9 79.1Q59.3 75.3 61.6 68.3Q63.8 61.2 63.8 51.6H63.2Q60.9 55.8 57.2 58.9Q53.5 62 48.8 63.6Q44.1 65.3 38.7 65.3Q30.1 65.3 23.3 61.2Q16.4 57.2 12.5 50.1Q8.6 42.9 8.6 33.8Q8.6 23.9 13.2 16.2Q17.8 8.6 26 4.2Q34.1 -0.3 44.9 -0.1Q52.3 -0.1 59.2 2.4Q66 4.9 71.5 10.4Q76.9 15.9 80.2 25.1Q83.4 34.2 83.4 47.6Q83.4 60 80.6 69.7Q77.8 79.4 72.7 86.2Q67.5 93 60.3 96.6Q53 100.1 44.1 100.1ZM44.8 50.7Q48.4 50.7 51.5 49.2Q54.6 47.8 56.9 45.5Q59.2 43.1 60.5 39.9Q61.8 36.8 61.8 33.1Q61.8 28.4 59.6 24.5Q57.4 20.6 53.6 18.2Q49.8 15.8 44.9 15.8Q40.2 15.8 36.3 18.1Q32.5 20.5 30.3 24.4Q28.1 28.4 28.1 33.3Q28.1 38.2 30.2 42.1Q32.4 46 36.2 48.3Q40 50.7 44.8 50.7Z", ":": "M18.3 85.5Q13.5 85.5 10.3 82.3Q7 79 7 74.2Q7 69.5 10.3 66.2Q13.5 63 18.3 63Q23.1 63 26.3 66.2Q29.6 69.5 29.6 74.2Q29.6 79 26.3 82.3Q23.1 85.5 18.3 85.5ZM18.3 37Q13.5 37 10.3 33.8Q7 30.5 7 25.8Q7 21 10.3 17.7Q13.5 14.5 18.3 14.5Q23.1 14.5 26.3 17.7Q29.6 21 29.6 25.8Q29.6 30.5 26.3 33.8Q23.1 37 18.3 37Z"},DW=92.0,CW=36.6;
+
+const $=s=>document.querySelector(s),H=document.documentElement,B=document.body,p=n=>String(n).padStart(2,'0');
+const lp=$('#loginPage'),ap=$('#appPage');
+const TH='<i class="fas fa-circle-half-stroke"></i>';
+function setTheme(t){H.dataset.theme=t;try{localStorage.setItem('ks_theme',t)}catch(e){}
+ document.querySelectorAll('meta[name=theme-color]').forEach(m=>m.content=t==='dark'?'#07120d':'#e9f0ff');
+ try{if(typeof CU!=='undefined'&&CU&&typeof CP!=='undefined')goto(CP)}catch(e){}}
+function toggleTheme(e){e&&e.stopPropagation();setTheme(H.dataset.theme==='dark'?'light':'dark')}
+const thBtn=()=>{const b=document.createElement('button');b.className='thb';b.title='Ganti tema terang/gelap';b.setAttribute('aria-label','Ganti tema');b.innerHTML=TH;b.onclick=toggleTheme;return b};
+/* lockscreen */
+lp.classList.add('lk-idle');
+lp.prepend(thBtn());
+lp.insertAdjacentHTML('afterbegin','<div class="lk-d"></div><div class="lk-t"></div>');
+lp.insertAdjacentHTML('beforeend','<div class="lk-hint"><i class="fas fa-chevron-up"></i><span>Klik atau geser ke atas untuk membuka</span></div><span class="lk-fb l"><i class="fas fa-bolt"></i></span><span class="lk-fb r"><i class="fas fa-camera"></i></span>');
+function unlock(){if(!lp.classList.contains('lk-idle'))return;lp.classList.remove('lk-idle');const u=$('#lu');u&&u.focus({preventScroll:true})}
+lp.addEventListener('click',unlock);
+addEventListener('keydown',e=>{if(lp.classList.contains('lk-idle')&&lp.style.display!=='none'&&!e.metaKey&&!e.ctrlKey&&!e.altKey&&e.key.length<=5&&e.key!=='Tab')unlock()});
+let ty=null;lp.addEventListener('touchstart',e=>{ty=e.touches[0].clientY},{passive:true});
+lp.addEventListener('touchend',e=>{if(ty!==null&&ty-e.changedTouches[0].clientY>40)unlock();ty=null});
+lp.addEventListener('wheel',e=>{if(e.deltaY>15)unlock()},{passive:true});
+/* window macOS */
+ap.insertAdjacentHTML('afterbegin','<div class="tbar"><span class="tl"><i title="Keluar"></i><i title="Kecilkan"></i><i title="Perbesar"></i></span><span id="tbTitle">Dashboard</span></div>');
+ap.querySelector('.tbar').append(thBtn());
+const tl=ap.querySelectorAll('.tbar .tl i');
+tl[0].onclick=()=>$('#logoutBtn').click();tl[1].onclick=tl[2].onclick=()=>ap.classList.toggle('max');
+ap.querySelector('.tbar').ondblclick=e=>{if(!e.target.closest('.tl,.thb'))ap.classList.toggle('max')};
+/* mobile header: tombol tema */
+const hd=$('.app-header');if(hd)hd.insertBefore(thBtn(),$('#headerAvatar'));
+/* menubar, status bar iPhone, dock */
+B.insertAdjacentHTML('beforeend',`<div id="menubar"><i class="fas fa-seedling" style="color:var(--pr3)"></i><b>KopSUS</b><span>Berkas</span><span>Tampilan</span><span>Jendela</span><span>Bantuan</span><div class="r"></div></div>
+<div id="sbar"><span id="sbT"></span><span id="sbR"></span></div><div id="island"></div><div id="hi"></div><div id="dock"></div>`);
+const r=$('#menubar .r');r.append(thBtn());r.insertAdjacentHTML('beforeend','<span id="mbC"></span>');
+const dk=$('#dock'),items=[['dashboard','fa-tachometer-alt','#34c759','Dashboard'],['inventory','fa-boxes','#ff9f0a','Inventory'],['sales','fa-chart-line','#0a84ff','Sales'],['reports','fa-chart-pie','#bf5af2','Reports'],['settings','fa-cogs','#8e8e93','Settings']];
+items.forEach(([k,i,c,t])=>{const d=document.createElement('div');d.className='ni';d.dataset.p=k;d.title=t;d.style.setProperty('--c',c);d.innerHTML='<i class="fas '+i+'"></i>';
+ d.onclick=()=>{const n=$('#nav .ni[data-p="'+k+'"]');if(typeof CU!=='undefined'&&CU&&!(n&&getComputedStyle(n).display==='none'))goto(k)};dk.append(d)});
+/* sinkron: status login -> body.in; idle lagi setelah logout */
+const sync=()=>{const v=ap.style.display==='block';if(!v&&B.classList.contains('in'))lp.classList.add('lk-idle');B.classList.toggle('in',v)};
+new MutationObserver(sync).observe(ap,{attributes:true,attributeFilter:['style']});sync();
+/* jam */
+const set=(s,t)=>{document.querySelectorAll(s).forEach(e=>{if(e.textContent!==t)e.textContent=t})};
+let _k='';function glass(t){if(t===_k)return;_k=t;let x=0,q='';for(const c of t){q+='<path transform="translate('+x+',0)" d="'+GP[c]+'"/>';x+=c===':'?CW:DW}
+ const v='<svg class="gsvg" viewBox="-6 -8 '+(x+12)+' 116" aria-label="'+t+'"><g filter="url(#glF)" fill="url(#glG)" stroke="url(#glG)" stroke-width="2.4" stroke-linejoin="round">'+q+'</g><g fill="none" stroke="url(#glR)" stroke-width="1.1" stroke-linejoin="round" shape-rendering="geometricPrecision">'+q+'</g></svg>';document.querySelectorAll('.lk-t').forEach(e=>e.innerHTML=v)}
+function tick(){const d=new Date(),t=p(d.getHours())+':'+p(d.getMinutes());glass(t);set('#sbT',t);
+ set('.lk-d',d.toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long'}));
+ set('#mbC',d.toLocaleString('id-ID',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).replace(/\./g,':'))}
+tick();setInterval(tick,5000);
+
+/* sinyal & baterai aktual (API browser; tidak ada data = tidak ditampilkan) */
+const sR=$('#sbR'),NC=navigator.connection||navigator.mozConnection||navigator.webkitConnection;let BAT=null;
+const bars=n=>{let s='';for(let i=0;i<4;i++){const h=4+i*2.6;s+='<rect x="'+i*4.6+'" y="'+(12-h)+'" width="3.2" height="'+h+'" rx="1" opacity="'+(i<n?1:.3)+'"/>'}return '<svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor">'+s+'</svg>'};
+const wifi='<svg width="17" height="12" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M1.5 4.2a9 9 0 0 1 13 0M3.9 6.9a5.6 5.6 0 0 1 8.2 0M6.3 9.5a2.2 2.2 0 0 1 3.4 0"/></svg>';
+function paintSB(){if(!sR)return;let h='';
+ if(!navigator.onLine)h='<svg width="18" height="12" viewBox="0 0 18 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M2 2l14 8M1.5 4.2a9 9 0 0 1 4-2.3M16.5 4.2a9 9 0 0 0-3-1.9"/></svg>';
+ else if(NC&&NC.type==='wifi')h=wifi;
+ else if(NC&&NC.effectiveType)h=bars({'slow-2g':1,'2g':2,'3g':3,'4g':4}[NC.effectiveType]||4);
+ else h=wifi;
+ if(BAT){const l=Math.round(BAT.level*100),c=BAT.charging?'#30d158':l<=20?'#ff453a':'currentColor';
+  h+='<span style="font-size:12px;font-weight:600">'+l+'%</span><svg width="26" height="12" viewBox="0 0 26 12"><rect x=".6" y=".6" width="22" height="10.8" rx="3.2" fill="none" stroke="currentColor" opacity=".45"/><rect x="2" y="2" width="'+Math.max(1.5,19.2*BAT.level)+'" height="8" rx="2" fill="'+c+'"/><path d="M24.2 4v4c1-.3 1.6-1.1 1.6-2s-.6-1.7-1.6-2z" fill="currentColor" opacity=".45"/>'+(BAT.charging?'<path d="M12.6 2.3 8.6 6.6h2.7l-.8 3.1 4-4.3h-2.7z" fill="#fff" stroke="#000" stroke-width=".3"/>':'')+'</svg>'}
+ sR.innerHTML=h}
+addEventListener('online',paintSB);addEventListener('offline',paintSB);NC&&NC.addEventListener&&NC.addEventListener('change',paintSB);
+paintSB();
+if(navigator.getBattery)navigator.getBattery().then(b=>{BAT=b;['levelchange','chargingchange'].forEach(e=>b.addEventListener(e,paintSB));paintSB()}).catch(()=>{});
+})();
 </script>
 </body>
 </html>
