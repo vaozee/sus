@@ -3671,7 +3671,7 @@ function computeTrx(){
 }
 const selected=()=>S.trx.filter(t=>!S.excluded.has(t.resi));
 // ── Pemetaan NIK → Code Pelanggan (kode acak 8 karakter, sama seperti Sheet1/DB) ──
-const nikKey=v=>String(v==null?'':v).trim().toUpperCase().replace(/\.0+$/,'').replace(/\s+/g,' ');
+const nikKey=v=>{let s=String(v==null?'':v).trim().toUpperCase().replace(/\.0+$/,'').replace(/\s+/g,' ');if(/^\d+$/.test(s))s=s.replace(/^0+(?=\d)/,'');return s};  // NIK angka: nol di depan diabaikan (032105086 = 32105086)
 const keyOf=t=>nikKey(t.code)||nikKey(t.nama);
 const KSMEM={map:new Map(),used:new Set(),srv:false};           // anggota yang sudah ada (Sheet1 / file DB)
 const KSNEW_KEY='ks_newmem';
