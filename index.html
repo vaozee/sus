@@ -508,6 +508,9 @@ background:linear-gradient(160deg,color-mix(in srgb,var(--c) 55%,#fff),var(--c))
       <div class="ni" data-p="payments"><i class="fas fa-credit-card"></i><span>Payments</span></div>
       <div class="ni" data-p="reports"><i class="fas fa-chart-pie"></i><span>Reports</span></div>
       <div class="ni" data-p="importbelanja" id="navImport"><i class="fas fa-file-import"></i><span>Impor Belanja (SQL)</span></div>
+      <div class="ni" data-p="datasql" id="navDataSql"><i class="fas fa-database"></i><span>Data SQL</span></div>
+      <div class="ni" data-p="stok" id="navStok"><i class="fas fa-triangle-exclamation"></i><span>Alert Stok</span><span id="stokBadge" style="display:none;margin-left:auto;background:#ef4444;color:#fff;border-radius:10px;padding:1px 8px;font-size:.7rem;font-weight:700"></span></div>
+      <div class="ni" data-p="jurnal" id="navJurnal"><i class="fas fa-book"></i><span>Jurnal</span></div>
       <div class="ni" data-p="settings" id="navSettings"><i class="fas fa-cogs"></i><span>Settings</span></div>
       <div class="ni" data-p="changepwd"><i class="fas fa-key"></i><span>Ganti Password</span></div>
       <div class="ni" id="logoutBtn"><i class="fas fa-sign-out-alt"></i><span>Logout</span></div>
@@ -788,6 +791,8 @@ function invalidateCache(...keys){
 // ── Generic data getter: coba backend, fallback ke demo data ──
 async function getData(cacheKey, action, demoData, params={}){
   if(_cache[cacheKey]!==null) return _cache[cacheKey];
+  if(window.KopSQL){ const d=await KopSQL.get(action); if(d){ _cache[cacheKey]=d; return d; } }   // sumber: SQL lokal
+  if((localStorage.getItem('ks_src')||'sql')!=='drive') return Array.isArray(demoData)?[]:demoData;   // mode offline: hanya SQL lokal, tanpa panggilan ke backend
   if(USE_BACKEND){
     const res = await api(action, params);
     if(res && res.ok && Array.isArray(res.data)){
@@ -889,11 +894,11 @@ async function doLogin(){
   const isAdmin  = user.role==='Admin';
   const isManager = user.role==='Manager';
   // Viewer: hide operational menus — only show Dashboard, Sales, Receipts, Logout
-  const viewerHide=['inventory','suppliers','customers','purchases','payments','reports','settings'];
+  const viewerHide=['stok','inventory','suppliers','customers','purchases','payments','reports','settings'];
   document.querySelectorAll('.ni[data-p]').forEach(n=>{
     if(n.dataset.p==='whatsapp'){
       n.style.display=isAdmin?'':'none';
-    } else if(n.dataset.p==='importbelanja'){
+    } else if(n.dataset.p==='importbelanja'||n.dataset.p==='datasql'||n.dataset.p==='jurnal'){
       n.style.display=(isAdmin||isManager)?'':'none';
     } else if(n.dataset.p==='settings'){
       n.style.display=(isStaff||isViewer)?'none':'';
@@ -1037,7 +1042,7 @@ function closeDrawer(){
 // PAGE TITLE for mobile header + trigger enter animation
 const PAGE_TITLES={dashboard:'Dashboard',inventory:'Inventory',suppliers:'Suppliers',customers:'Customers',
   purchases:'Purchases',sales:'Sales',receipts:'Receipts',payments:'Payments',reports:'Reports',
-  settings:'Settings',changepwd:'Ganti Password',importbelanja:'Impor Belanja'};
+  settings:'Settings',changepwd:'Ganti Password',importbelanja:'Impor Belanja',datasql:'Data SQL',jurnal:'Jurnal',stok:'Alert Stok'};
 function updateHeaderForPage(p){
   const h=document.getElementById('headerPageTitle');
   if(h) h.textContent=PAGE_TITLES[p]||'KopSUS App';
@@ -1155,7 +1160,8 @@ function filterData(arr,q,fields){
   const ql=q.toLowerCase();
   return arr.filter(r=>fields.some(f=>(String(r[f]||'')).toLowerCase().includes(ql)));
 }
-function paginate(arr,page,perPage=15){
+function limNote(tb,tot,cols){if(!tb||tot<=20)return;tb.insertAdjacentHTML('beforeend',`<tr><td colspan="${cols}" style="padding:10px;text-align:center;color:var(--mut);font-size:.8rem">Menampilkan 20 dari ${fmtNum(tot)} baris — gunakan kotak filter untuk mempersempit (angka total dihitung dari semua data)</td></tr>`)}
+function paginate(arr,page,perPage=20){
   const total=Math.ceil(arr.length/perPage)||1;
   if(page>total)page=total;
   return{data:arr.slice((page-1)*perPage,page*perPage),total,page};
@@ -1163,10 +1169,12 @@ function paginate(arr,page,perPage=15){
 function renderPager(containerId,total,current,onPage){
   const el=document.getElementById(containerId);if(!el)return;
   if(total<=1){el.innerHTML='';return;}
-  let html='';
-  for(let i=1;i<=total;i++){
-    html+=`<button class="btn btn-ol btn-sm${i===current?' btn-pr':''}" data-page="${i}">${i}</button>`;
-  }
+  const set=new Set([1,total]);for(let i=current-2;i<=current+2;i++)if(i>=1&&i<=total)set.add(i);
+  const btn=(i,l,on)=>`<button class="btn btn-ol btn-sm${on?' btn-pr':''}" data-page="${i}">${l}</button>`;
+  let html='',prev=0;
+  if(current>1)html+=btn(current-1,'‹');
+  for(const i of [...set].sort((x,y)=>x-y)){if(prev&&i-prev>1)html+='<span style="padding:0 4px;opacity:.6">…</span>';html+=btn(i,i,i===current);prev=i}
+  if(current<total)html+=btn(current+1,'›');
   el.innerHTML=html;
   el.querySelectorAll('button[data-page]').forEach(b=>{
     b.addEventListener('click',()=>onPage(+b.dataset.page));
@@ -1188,7 +1196,7 @@ function goto(p){
   destroyCharts();
   const pages={dashboard:pgDashboard,inventory:pgInventory,suppliers:pgSuppliers,customers:pgCustomers,whatsapp:pgWhatsApp,
     purchases:pgPurchases,sales:pgSales,receipts:pgReceipts,payments:pgPayments,reports:pgReports,settings:pgSettings,
-    changepwd:pgChangePassword,importbelanja:pgImportBelanja};
+    changepwd:pgChangePassword,importbelanja:pgImportBelanja,datasql:pgDataSQL,jurnal:pgJurnal,stok:pgStok};
   document.getElementById('pageContent').innerHTML='';
   if(pages[p]){
     const result=pages[p]();
@@ -1241,7 +1249,7 @@ async function pgDashboard(){
 
   let kpi={}, chartData={};
 
-  if(USE_BACKEND){
+  if(USE_BACKEND && (localStorage.getItem('ks_src')||'sql')==='drive'){
     const res=await api('getDashboard');
     if(res&&res.ok){ kpi=res.kpi||{}; chartData=res.charts||{}; }
   }
@@ -2308,7 +2316,8 @@ function renderPO(){
 function renderPD(q){
   const fil=filterData(_pdData,q,['PO ID','poId','Supplier Name','supplierName','Item Name','itemName','Item Type','itemType']);
   const tb=document.getElementById('pdTb');if(!tb)return;
-  tb.innerHTML=fil.map(r=>`<tr>
+  setTimeout(()=>limNote(tb,fil.length,12),0);
+  tb.innerHTML=fil.slice(0,20).map(r=>`<tr>
     <td>${fv(r,'Date','date')}</td><td>${fv(r,'PO ID','poId')}</td>
     <td>${fv(r,'Supplier Name','supplierName')}</td><td>${fv(r,'Bill Num','billNum')}</td>
     <td>${fv(r,'State','state')}</td><td>${fv(r,'City','city')}</td>
@@ -2438,6 +2447,7 @@ async function pgSales(){
     <th>QTY Sold</th><th>Unit Price</th><th>Price Incl Tax</th><th>Shipping Fees</th><th>Total Sales Price</th></tr></thead>
     <tbody id="sdTb"><tr><td colspan="15" style="text-align:center;padding:20px"><i class="fas fa-spinner fa-spin"></i> Memuat...</td></tr></tbody>
   </table></div>
+  <div id="sdPg" style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap"></div>
 </div>`;
   document.getElementById('btnAddSO').addEventListener('click',openAddSO);
   document.getElementById('soSi').addEventListener('input',function(){soQ=this.value;soPage=1;renderSO();});
@@ -2465,9 +2475,13 @@ function renderSO(){
   document.querySelectorAll('#soTb [data-del]').forEach(b=>b.addEventListener('click',()=>delSO(b.dataset.del)));
   renderPager('soPg',total,soPage,p=>{soPage=p;renderSO();});
 }
-function renderSD(q){
-  const fil=filterData(_sdData,q,['SO ID','soId','Customer Name','customerName','Item Name','itemName','Invoice Num','invoiceNum']);
+let sdPage=1,sdQ='';
+function renderSD(q,keep){
+  if(typeof q==='string'&&!keep){sdQ=q;sdPage=1}
+  const fil0=filterData(_sdData,sdQ,['SO ID','soId','Customer Name','customerName','Item Name','itemName','Invoice Num','invoiceNum']);
+  const {data:fil,total:sdTotal,page:sdP}=paginate(fil0,sdPage);sdPage=sdP;
   const tb=document.getElementById('sdTb');if(!tb)return;
+  renderPager('sdPg',sdTotal,sdPage,p=>{sdPage=p;renderSD(null,true)});
   tb.innerHTML=fil.map(r=>`<tr>
     <td>${fv(r,'SO Date','soDate')}</td><td>${fv(r,'SO ID','soId')}</td><td>${fv(r,'Detail ID','detailId')}</td>
     <td>${fv(r,'Customer Name','customerName')}</td><td>${fv(r,'State','state')}</td><td>${fv(r,'City','city')}</td>
@@ -2923,7 +2937,7 @@ function renderRptSales(q){
   <div class="tw"><table>
     <thead><tr><th>SO Date</th><th>SO ID</th><th>Customer Name</th><th>State</th><th>City</th>
     <th>Item Name</th><th>Item Type</th><th>QTY Sold</th><th>Unit Price</th><th>Price Incl Tax</th><th>Shipping</th><th>Total Sales Price</th></tr></thead>
-    <tbody>${filtered.map(r=>`<tr>
+    <tbody>${filtered.slice(0,20).map(r=>`<tr>
       <td>${fv(r,'SO Date','soDate')}</td><td>${fv(r,'SO ID','soId')}</td>
       <td>${fv(r,'Customer Name','customerName')}</td><td>${fv(r,'State','state')}</td><td>${fv(r,'City','city')}</td>
       <td>${fv(r,'Item Name','itemName')}</td><td>${fv(r,'Item Type','itemType')}</td>
@@ -2934,7 +2948,7 @@ function renderRptSales(q){
     '<tr><td colspan="12" style="text-align:center;color:var(--mut);padding:20px">Tidak ada data</td></tr>'}</tbody>
   </table></div>
 </div>`;
-  wireRptFilter('rptS',renderRptSales);
+  limNote(el.querySelector('tbody'),filtered.length,12);wireRptFilter('rptS',renderRptSales);
 }
 
 function renderRptPurchase(q){
@@ -2953,7 +2967,7 @@ function renderRptPurchase(q){
   <div class="tw"><table>
     <thead><tr><th>Date</th><th>PO ID</th><th>Supplier Name</th><th>State</th><th>City</th>
     <th>Item Name</th><th>Item Type</th><th>QTY Purchased</th><th>Unit Price</th><th>Total Purchase Price</th></tr></thead>
-    <tbody>${filtered.map(r=>`<tr>
+    <tbody>${filtered.slice(0,20).map(r=>`<tr>
       <td>${fv(r,'Date','date')}</td><td>${fv(r,'PO ID','poId')}</td>
       <td>${fv(r,'Supplier Name','supplierName')}</td><td>${fv(r,'State','state')}</td><td>${fv(r,'City','city')}</td>
       <td>${fv(r,'Item Name','itemName')}</td><td>${fv(r,'Item Type','itemType')}</td>
@@ -2963,7 +2977,7 @@ function renderRptPurchase(q){
     '<tr><td colspan="10" style="text-align:center;color:var(--mut);padding:20px">Tidak ada data</td></tr>'}</tbody>
   </table></div>
 </div>`;
-  wireRptFilter('rptP',renderRptPurchase);
+  limNote(el.querySelector('tbody'),filtered.length,12);wireRptFilter('rptP',renderRptPurchase);
 }
 
 function renderRptInventory(q){
@@ -2981,7 +2995,7 @@ function renderRptInventory(q){
   <div class="tw"><table>
     <thead><tr><th>Item ID</th><th>Item Name</th><th>Item Type</th><th>Item Category</th><th>Item Subcategory</th>
     <th>QTY Purchased</th><th>QTY Sold</th><th>Remaining QTY</th><th>Reorder Level</th><th>Reorder Required</th></tr></thead>
-    <tbody>${filtered.map(r=>{
+    <tbody>${filtered.slice(0,20).map(r=>{
       const rem=fn(r,'Remaining QTY','remainingQty');const rl=fn(r,'Reorder Level','reorderLevel');
       const rr=r['Reorder Required']===true||String(r['Reorder Required']).toLowerCase()==='true'||r.reorderRequired===true;
       return`<tr>
@@ -2993,7 +3007,7 @@ function renderRptInventory(q){
     '<tr><td colspan="10" style="text-align:center;color:var(--mut);padding:20px">Tidak ada data</td></tr>'}</tbody>
   </table></div>
 </div>`;
-  wireRptFilter('rptI',renderRptInventory);
+  limNote(el.querySelector('tbody'),filtered.length,10);wireRptFilter('rptI',renderRptInventory);
 }
 
 function renderRptFinancial(){
@@ -3010,19 +3024,19 @@ function renderRptFinancial(){
     <div class="kpi"><h3><i class="fas fa-chart-line"></i>Total Sales</h3><h2>${fmtRp(totSales)}</h2></div>
     <div class="kpi"><h3><i class="fas fa-shopping-cart"></i>Total Purchases</h3><h2>${fmtRp(totPurchases)}</h2></div>
   </div>
-  <h3 style="color:var(--sc);margin:16px 0 10px">Customers — Balance Receivable</h3>
+  <h3 style="color:var(--sc);margin:16px 0 10px">Customers — Balance Receivable <small style="opacity:.6;font-weight:400">(20 teratas dari ${_cusData.length})</small></h3>
   <div class="tw"><table>
     <thead><tr><th>Customer ID</th><th>Customer Name</th><th>State</th><th>City</th><th>Total Sales</th><th>Total Receipts</th><th>Balance Receivable</th></tr></thead>
-    <tbody>${_cusData.map(r=>`<tr>
+    <tbody>${_cusData.slice(0,20).map(r=>`<tr>
       <td>${fv(r,'Customer ID','id')}</td><td>${fv(r,'Customer Name','name')}</td>
       <td>${fv(r,'State','state')}</td><td>${fv(r,'City','city')}</td>
       <td>${fmtRp(fn(r,'Total Sales','totalSales'))}</td><td>${fmtRp(fn(r,'Total Receipts','totalReceipts'))}</td>
       <td><span class="badge ${fn(r,'Balance Receivable','balance')>0?'br':'bg'}">${fmtRp(fn(r,'Balance Receivable','balance'))}</span></td></tr>`).join('')}</tbody>
   </table></div>
-  <h3 style="color:var(--sc);margin:16px 0 10px">Suppliers — Balance Payable</h3>
+  <h3 style="color:var(--sc);margin:16px 0 10px">Suppliers — Balance Payable <small style="opacity:.6;font-weight:400">(20 teratas dari ${_supData.length})</small></h3>
   <div class="tw"><table>
     <thead><tr><th>Supplier ID</th><th>Supplier Name</th><th>State</th><th>City</th><th>Total Purchases</th><th>Total Payments</th><th>Balance Payable</th></tr></thead>
-    <tbody>${_supData.map(r=>`<tr>
+    <tbody>${_supData.slice(0,20).map(r=>`<tr>
       <td>${fv(r,'Supplier ID','id')}</td><td>${fv(r,'Supplier Name','name')}</td>
       <td>${fv(r,'State','state')}</td><td>${fv(r,'City','city')}</td>
       <td>${fmtRp(fn(r,'Total Purchases','totalPurchases'))}</td><td>${fmtRp(fn(r,'Total Payments','totalPayments'))}</td>
@@ -3540,7 +3554,7 @@ function monthForDate(d,preset,sd,ed){
 
 // ───────────────────────── state ─────────────────────────
 const RCOLS=['CODE','Code Pelanggan','NO.','RESI','KODE PELANGGAN','COB','NAMA PELANGGAN','NAMA BARANG','ALAMAT PELANGGAN','SATUAN','QTY','HARGA','TOTAL','TANGGAL'];
-const BATCH=1500,SHOW=200;
+const BATCH=1500,SHOW=20;
 const S={tables:new Map(),files:[],trx:[],stat:{},excluded:new Set(),q:'',busy:false,
   ui:{preset:'cutoff',month:'',sd:29,ed:28,from:'',to:'',s1:'',s2:'',mode:'replace',upd:true}};
 
@@ -3571,6 +3585,8 @@ async function addFiles(files){
   const b=$i('ibBar');if(b)b.style.width='0';
   if(fi){fi.disabled=false;fi.value=''}
   renderFiles();fillSel(true);
+  if(window.KopDB)KopDB.saveAll(S.tables);   // simpan permanen di browser (IndexedDB)
+  if(window.KopSQL)KopSQL.reset();invalidateCache();
 }
 function renderFiles(){
   const e=$i('ibFiles');if(!e)return;
@@ -3688,8 +3704,8 @@ function ingestMembers(t){            // tabel anggota (sheet DB / Sheet1): kolo
   const iNm=c.indexOf('nama'),iJ=c.indexOf('jabatan');let n=0;
   for(const r of t.rows){if(!String(r[iC]??'').trim())continue;addMember(r[iN],r[iC],iNm>=0?r[iNm]:'',iJ>=0?r[iJ]:'');n++}
   return n}
-async function loadMembers(){
-  if(!USE_BACKEND||!SESSION_TOKEN)return;
+async function loadMembers(force){
+  if(!USE_BACKEND||!SESSION_TOKEN)return;if(!force&&(localStorage.getItem('ks_src')||'sql')!=='drive')return;
   const r=await api('getMemberMap',{});
   if(r&&r.ok&&Array.isArray(r.members)){r.members.forEach(m=>addMember(m.nik,m.code,m.nama,m.jabatan));KSMEM.srv=true;renderKpi()}
 }
@@ -3736,10 +3752,10 @@ function renderCust(){
   const by=new Map();for(const t of sel){const k=keyOf(t);if(!by.has(k))by.set(k,[]);by.get(k).push(t)}
   const q=(S.cq||'').trim().toLowerCase();
   const arr=[...by.values()].filter(l=>!q||`${l[0].nama} ${l[0].code} ${l[0].kode}`.toLowerCase().includes(q)).sort((x,y)=>String(x[0].nama).localeCompare(String(y[0].nama)));
-  e.innerHTML=arr.slice(0,30).map(l=>{const f=l[0],tot=l.reduce((x,t)=>x+t.total,0);
+  e.innerHTML=arr.slice(0,20).map(l=>{const f=l[0],tot=l.reduce((x,t)=>x+t.total,0);
     return`<details class="ib-cu"><summary><b>${esc(f.nama)}</b> · NIK ${esc(f.code||'–')} · Kode <code>${esc(f.kode)}</code>${f.baru?' <span class="badge by">kode baru</span>':''} · ${l.length} trx · ${fmtRp(tot)}</summary>`+
       l.map(t=>`<div style="margin-top:8px;font-size:.8rem"><b>${esc(t.resi)}</b> · ${t.tgl?idDate(t.tgl):'–'} · ${fmtRp(t.total)}</div>${itemsTable(t.items)}`).join('')+`</details>`}).join('')||'<div class="ib-msg">Belum ada pelanggan pada transaksi terpilih.</div>';
-  msg('ibCm',arr.length>30?`Menampilkan 30 dari ${fmtNum(arr.length)} pelanggan — gunakan kotak cari.`:`${fmtNum(arr.length)} pelanggan.`);
+  msg('ibCm',arr.length>20?`Menampilkan 20 dari ${fmtNum(arr.length)} pelanggan — gunakan kotak cari.`:`${fmtNum(arr.length)} pelanggan.`);
 }
 // baca ringkasan & detail belanja per pelanggan langsung dari tab Rincian di Google Drive
 const KSDRV={list:[]};
@@ -3752,7 +3768,7 @@ async function drLoad(){
 }
 function drRender(){
   const q=($i('ibDq').value||'').trim().toLowerCase();
-  const l=KSDRV.list.filter(x=>!q||`${x.nama} ${x.nik} ${x.code}`.toLowerCase().includes(q)).slice(0,100);
+  const l=KSDRV.list.filter(x=>!q||`${x.nama} ${x.nik} ${x.code}`.toLowerCase().includes(q)).slice(0,20);
   $i('ibDtb').innerHTML=l.map(x=>`<tr><td>${esc(x.nama)}</td><td>${esc(x.nik)}</td><td><code>${esc(x.code)}</code></td><td class="ib-n">${x.trx}</td><td class="ib-n">${fmtRp(x.total)}</td><td><button class="btn btn-ol btn-sm" data-c="${esc(x.code)}" type="button">Detail</button></td></tr>`).join('')||'<tr><td colspan="6" style="text-align:center;padding:16px;color:var(--mut,#8fae9a)">Klik "Muat dari Drive".</td></tr>';
 }
 async function drDetail(code){
@@ -3819,6 +3835,7 @@ function renderTrx(){
 async function loadInfo(){
   const e=$i('ibInfo');if(!e)return;
   loadMembers();
+  if((localStorage.getItem('ks_src')||'sql')!=='drive'){msg('ibInfo','Mode offline: data dibaca dari SQL lokal, tanpa koneksi. Tekan "Kirim ke Google Drive" bila ingin sinkronisasi online.');return}
   if(!USE_BACKEND||!SESSION_TOKEN){msg('ibInfo','Mode demo / belum terhubung ke backend — pengiriman ke Google Drive tidak tersedia, tetapi Anda tetap bisa mengunduh Excel.','wa');return}
   const r=await api('getRincianInfo',{});
   if(!r||!r.ok){msg('ibInfo',r&&r.error?r.error:'Gagal membaca info tab Rincian. Pastikan backend (kopsus-backend.gs) sudah diperbarui & di-deploy ulang.','wa');return}
@@ -3852,6 +3869,7 @@ async function syncToDrive(){
   if(!confirm(ask))return;
   S.busy=true;renderKpi();
   msg('ibSm','Mencocokkan NIK dengan Code Pelanggan di Sheet1…');
+  if(!KSMEM.srv)await loadMembers(true);
   const rs=await resolveMembersServer(sel);
   if(!rs.ok){S.busy=false;renderKpi();msg('ibSm',rs.error,'er');return}
   rows=exportRows(sel);
@@ -4010,7 +4028,7 @@ function wire(){
   $i('ibUpd').onchange=e=>{S.ui.upd=e.target.checked};
   $i('ibSend').onclick=syncToDrive;
   $i('ibXls').onclick=downloadXlsx;
-  $i('ibCq').oninput=e=>{S.cq=e.target.value;renderCust()};
+  $i('ibCq').oninput=e=>{const v=e.target.value;clearTimeout(S._ct);S._ct=setTimeout(()=>{S.cq=v;renderCust()},250)};
   $i('ibDrLoad').onclick=drLoad;$i('ibRepair').onclick=drRepair;
   $i('ibDq').oninput=drRender;
   $i('ibDtb').onclick=e=>{const b=e.target.closest('button[data-c]');if(b)drDetail(b.dataset.c)};
@@ -4165,5 +4183,398 @@ wload();wlay();_k='';let wt;addEventListener('resize',()=>{clearTimeout(wt);wt=s
 tick();
 })();
 </script>
+<script>
+/* ═══ TAHAP 1 — Data SQL lokal (offline): simpan permanen, lihat, tambah/ubah/hapus, ekspor .sql ═══ */
+(function(){
+const S=window.KopImport.S,$=id=>document.getElementById(id),PS=20,ST='tables';
+const idb=()=>new Promise((ok,no)=>{const r=indexedDB.open('kopsus_local',1);r.onupgradeneeded=()=>r.result.createObjectStore(ST);r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
+async function put(n,t){try{const d=await idb();await new Promise((ok,no)=>{const x=d.transaction(ST,'readwrite');x.objectStore(ST).put({cols:t.cols,rows:t.rows,dirty:!!t.dirty},n);x.oncomplete=ok;x.onerror=()=>no(x.error)})}catch(e){console.warn('[KopDB]',e)}}
+async function saveAll(m){for(const [n,t] of m)await put(n,t)}
+async function loadAll(){try{const d=await idb();return await new Promise(ok=>{const m=new Map(),c=d.transaction(ST).objectStore(ST).openCursor();c.onsuccess=()=>{const k=c.result;if(k){m.set(k.key,k.value);k.continue()}else ok(m)};c.onerror=()=>ok(m)})}catch(e){return new Map()}}
+async function getOne(n){const d=await idb();return new Promise(ok=>{const q=d.transaction(ST).objectStore(ST).get(n);q.onsuccess=()=>ok(q.result||null);q.onerror=()=>ok(null)})}
+window.KopDB={put,saveAll,loadAll,get:getOne,backup:()=>backup(),restore:f=>restore(f)};
+window.KopDB.loadedP=loadAll().then(m=>{if(m.size&&!S.tables.size){let c=0;m.forEach((t,n)=>{if(!n.startsWith('__')){S.tables.set(n,t);c++}});if(c)S.files.push(`Data tersimpan di browser · ${c} tabel`)}});
+
+const P={name:'',q:'',pg:0,ed:null,tm:0};
+const T=()=>S.tables.get(P.name),sv=v=>v instanceof Date?v.toISOString().slice(0,10):(v==null?'':String(v));
+const persist=()=>{if(window.KopSQL)KopSQL.reset();invalidateCache();const t=T();t.dirty=true;clearTimeout(P.tm);P.tm=setTimeout(()=>put(P.name,t),400)};
+const list=()=>{const t=T(),q=P.q.trim().toLowerCase(),o=[];if(t)t.rows.forEach((r,i)=>{if(!q||r.some(v=>sv(v).toLowerCase().includes(q)))o.push(i)});return o};
+function render(){
+  const t=T(),names=[...S.tables.keys()];
+  $('dsT').innerHTML=names.map(n=>`<option value="${esc(n)}"${n===P.name?' selected':''}>${esc(n)} — ${fmtNum(S.tables.get(n).rows.length)} baris</option>`).join('');
+  if(!t){$('dsH').innerHTML='';$('dsB').innerHTML='<tr><td style="padding:20px">Belum ada data SQL. Muat file .sql di menu Impor Belanja (langkah 1) — datanya otomatis tersimpan di browser dan muncul di sini.</td></tr>';$('dsP').innerHTML='';$('dsM').textContent='';return}
+  const L=list(),pg=Math.max(1,Math.ceil(L.length/PS));P.pg=Math.min(P.pg,pg-1);
+  $('dsH').innerHTML='<tr><th></th>'+t.cols.map(c=>`<th>${esc(c)}</th>`).join('')+'</tr>';
+  $('dsB').innerHTML=L.slice(P.pg*PS,P.pg*PS+PS).map(i=>`<tr><td><button class="btn btn-ol btn-sm" data-e="${i}" type="button">Edit</button></td>`+t.cols.map((c,j)=>`<td>${esc(sv(t.rows[i][j]))}</td>`).join('')+'</tr>').join('');
+  $('dsM').textContent=`${fmtNum(L.length)} baris`+(t.dirty?' · ada perubahan (tersimpan otomatis di browser ini)':'');
+  $('dsP').innerHTML=`<button class="btn btn-ol btn-sm" data-pg="-1" type="button">‹</button><span style="padding:6px 10px">Hal ${P.pg+1} / ${pg}</span><button class="btn btn-ol btn-sm" data-pg="1" type="button">›</button>`;
+}
+function edit(i){
+  const t=T(),r=i<0?t.cols.map(()=>''):t.rows[i],e=$('dsE');P.ed=i;e.style.display='';
+  e.innerHTML=`<h3>${i<0?'Tambah baris':'Edit baris #'+(i+1)}</h3><div class="ib-g">${t.cols.map((c,j)=>`<label>${esc(c)}<input class="fc" data-j="${j}" value="${esc(sv(r[j]))}"></label>`).join('')}</div><div class="btn-grp" style="margin-top:12px"><button class="btn btn-pr" id="dsSave" type="button">Simpan</button><button class="btn btn-ol" id="dsCancel" type="button">Batal</button>${i>=0?'<button class="btn btn-ol" id="dsDel" type="button" style="color:#f87171">Hapus</button>':''}</div>`;
+  e.scrollIntoView({behavior:'smooth'});
+}
+function save(){
+  const t=T(),old=P.ed>=0?t.rows[P.ed]:null,row=t.cols.map((c,j)=>{const v=$('dsE').querySelector(`[data-j="${j}"]`).value;return v===''&&old&&old[j]==null?null:v});
+  if(P.ed<0)t.rows.push(row);else t.rows[P.ed]=row;
+  $('dsE').style.display='none';persist();render();toast('Baris disimpan');
+}
+const dl=(blob,name)=>{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000)};
+const q=v=>v==null?'NULL':'"'+sv(v).replace(/\\/g,'\\\\').replace(/"/g,'\\"').replace(/\r?\n/g,'\\n')+'"';
+function exportSql(){
+  const t=T();if(!t)return;
+  const nm=P.name.split(' › ').pop().replace(/\s*\(.*\)$/,'').replace(/\.\w+$/,''),cols=t.cols.map(c=>'`'+c+'`').join(',');
+  let s=`-- Diekspor dari KopSUS ${new Date().toISOString().slice(0,10)}\nDELETE FROM \`${nm}\`;\n`;
+  for(let i=0;i<t.rows.length;i+=500)s+=`INSERT INTO \`${nm}\` (${cols}) VALUES\n`+t.rows.slice(i,i+500).map(r=>'('+t.cols.map((c,j)=>q(r[j])).join(',')+')').join(',\n')+';\n';
+  dl(new Blob([s],{type:'text/plain'}),`${nm}.sql`);
+}
+function exportXls(){const t=T();if(!t||typeof XLSX==='undefined')return toast('Library Excel belum termuat.',true);
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([t.cols,...t.rows]),'Data');XLSX.writeFile(wb,`${P.name.replace(/[^\w.-]+/g,'_')}.xlsx`)}
+const USED={pelanggan:'Customers',supplier:'Suppliers',barang:'Inventory, Alert Stok',penjualan:'Sales, Receipts, Jurnal',itempenjualan:'Sales, Laba rugi',pembelian:'Purchases, Payments, Jurnal',itempembelian:'Purchases',pengeluaran:'Jurnal',pemasukan:'Jurnal',kas:'Jurnal',kas_awal:'Jurnal',mutasikas:'Jurnal',pembayaran_angsuran:'Jurnal',hutang:'Jurnal',piutang:'Jurnal',return_pembelian:'Jurnal',return_penjualan:'Jurnal',biaya:'Jurnal'};
+function cov(){const e=$('dsCov');if(!e)return;const n=k=>k.split(' › ').pop().replace(/\s*\(.*\)$/,'').replace(/\.\w+$/,'').toLowerCase();
+  const r=[...S.tables].map(([k,t])=>[n(k),t.rows.length]).filter(x=>x[1]>0).sort((a,b)=>(USED[a[0]]?1:0)-(USED[b[0]]?1:0)||b[1]-a[1]),un=r.filter(x=>!USED[x[0]]).length;
+  e.innerHTML=`<summary style="cursor:pointer"><b>Cakupan data SQL</b> — ${r.length-un} tabel dipakai, ${un} tabel berisi data tapi belum dipakai</summary><div class="ib-tw" style="margin-top:10px"><table><thead><tr><th>Tabel</th><th class="ib-n">Baris</th><th>Dipakai di</th></tr></thead><tbody>${r.map(x=>`<tr><td>${esc(x[0])}</td><td class="ib-n">${fmtNum(x[1])}</td><td>${USED[x[0]]?esc(USED[x[0]]):'<span style="color:#f59e0b">belum dipakai</span>'}</td></tr>`).join('')||'<tr><td colspan="3" style="padding:12px;opacity:.7">Belum ada data SQL.</td></tr>'}</tbody></table></div>`}
+async function clearDb(){const d=await idb();await new Promise(ok=>{const x=d.transaction(ST,'readwrite');x.objectStore(ST).clear();x.oncomplete=ok;x.onerror=ok})}
+async function backup(){
+  const o={v:1,tables:{},jurnal:[]};S.tables.forEach((t,n)=>o.tables[n]={cols:t.cols,rows:t.rows});
+  const m=await loadAll(),j=m.get('__jurnal');if(j)o.jurnal=j.rows;
+  dl(new Blob([JSON.stringify(o)],{type:'application/json'}),`kopsus_cadangan_${new Date().toISOString().slice(0,10)}.json`);toast('Cadangan diunduh');
+}
+async function restore(f){
+  let o;try{o=JSON.parse(await f.text());if(!o||!o.tables)throw 0}catch(e){return toast('File cadangan tidak valid.',true)}
+  if(!confirm('Pulihkan cadangan ini? Data SQL dan jurnal lokal saat ini akan diganti.'))return;
+  S.tables.clear();for(const [n,t] of Object.entries(o.tables))S.tables.set(n,t);
+  await clearDb();await saveAll(S.tables);await put('__jurnal',{cols:['id','tgl','jenis','pihak','akun','ket','jumlah','ref'],rows:o.jurnal||[]});
+  toast('Cadangan dipulihkan — memuat ulang…');setTimeout(()=>location.reload(),700);
+}
+window.pgDataSQL=function(){
+  const pc=$('pageContent');
+  if(!(CU&&(CU.role==='Admin'||CU.role==='Manager'))){pc.innerHTML='<div class="tc"><p style="color:#f87171">Akses ditolak — hanya Admin &amp; Manager.</p></div>';return}
+  if(!S.tables.has(P.name))P.name=[...S.tables.keys()][0]||'';
+  pc.innerHTML=`<div class="ph"><h1>Data SQL</h1><p>Lihat, tambah, ubah, dan hapus isi tabel SQL. Tersimpan di browser (bisa offline) dan bisa diekspor kembali ke .sql / Excel</p></div>
+<div class="tc"><div class="ib-g"><label>Tabel<select class="fc" id="dsT"></select></label><label>Sumber data halaman<select class="fc" id="dsSrc"><option value="sql">SQL lokal (offline)</option><option value="drive">Google Drive (online / sinkronisasi)</option></select></label><label>Cari<input class="si" id="dsQ" placeholder="Cari di semua kolom..."></label></div>
+<div class="btn-grp" style="margin:12px 0"><button class="btn btn-pr btn-sm" id="dsAdd" type="button"><i class="fas fa-plus"></i> Tambah baris</button><button class="btn btn-ol btn-sm" id="dsSql" type="button"><i class="fas fa-database"></i> Unduh .sql</button><button class="btn btn-ol btn-sm" id="dsXls" type="button"><i class="fas fa-file-excel"></i> Unduh Excel</button><button class="btn btn-ol btn-sm" id="dsImp" type="button"><i class="fas fa-file-import"></i> Muat file SQL</button><button class="btn btn-ol btn-sm" id="dsBak" type="button"><i class="fas fa-download"></i> Cadangkan semua data</button><button class="btn btn-ol btn-sm" id="dsRes" type="button"><i class="fas fa-upload"></i> Pulihkan cadangan</button></div>
+<div class="ib-msg" id="dsM"></div><div class="ib-tw"><table><thead id="dsH"></thead><tbody id="dsB"></tbody></table></div><div class="btn-grp" id="dsP" style="margin-top:10px"></div></div><div class="tc" id="dsE" style="display:none"></div><details class="tc" id="dsCov"></details>`;
+  $('dsSrc').value=localStorage.getItem('ks_src')||'sql';$('dsSrc').onchange=e=>{localStorage.setItem('ks_src',e.target.value);KopSQL.reset();invalidateCache();toast('Sumber data halaman: '+e.target.options[e.target.selectedIndex].text)};
+  $('dsT').onchange=e=>{P.name=e.target.value;P.pg=0;$('dsE').style.display='none';render()};
+  $('dsQ').oninput=e=>{const v=e.target.value;clearTimeout(P.st);P.st=setTimeout(()=>{P.q=v;P.pg=0;render()},250)};
+  $('dsB').onclick=e=>{const b=e.target.closest('[data-e]');if(b)edit(+b.dataset.e)};
+  $('dsP').onclick=e=>{const b=e.target.closest('[data-pg]');if(b){P.pg=Math.max(0,P.pg+ +b.dataset.pg);render()}};
+  $('dsAdd').onclick=()=>T()&&edit(-1);$('dsSql').onclick=exportSql;$('dsXls').onclick=exportXls;$('dsImp').onclick=()=>goto('importbelanja');$('dsBak').onclick=backup;
+  $('dsRes').onclick=()=>{const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=()=>i.files[0]&&restore(i.files[0]);i.click()};
+  $('dsE').onclick=e=>{const id=e.target.id;if(id==='dsSave')save();else if(id==='dsCancel')$('dsE').style.display='none';
+    else if(id==='dsDel'&&confirm('Hapus baris ini?')){T().rows.splice(P.ed,1);$('dsE').style.display='none';persist();render()}};
+  render();cov();
+};
+})();
+</script>
+
+<script>
+/* ═══ TAHAP 2 — Jurnal offline: kas, hutang supplier, simpanan pokok/wajib per bulan, biaya operasional ═══ */
+(function(){
+const S=KopImport.S,$=id=>document.getElementById(id),JK='__jurnal',COLS=['id','tgl','jenis','pihak','akun','ket','jumlah','ref','kas','kas2','oleh'];
+const JN={SALDO_AWAL:['Saldo awal kas',1],KAS_MASUK:['Kas masuk',1],SIMPANAN_POKOK:['Simpanan pokok',1],SIMPANAN_WAJIB:['Simpanan wajib',1],KAS_KELUAR:['Kas keluar',-1],BIAYA_OPS:['Biaya operasional',-1],BAYAR_HUTANG:['Bayar hutang supplier',-1],BELI_KREDIT:['Pembelian kredit (hutang baru)',0],BAYAR_PIUTANG:['Terima bayar piutang pelanggan',1],PIUTANG_BARU:['Penjualan kredit (piutang baru)',0],MUTASI_KAS:['Mutasi antar kas',0]};
+let R=[],tm=0;const F={bln:new Date().toISOString().slice(0,7),jn:''};
+const ready=KopDB.loadAll().then(m=>{const t=m.get(JK);if(t)R=t.rows});
+const save=()=>{clearTimeout(tm);tm=setTimeout(()=>KopDB.put(JK,{cols:COLS,rows:R}),300)};
+const num=v=>Number(String(v??'').replace(/[^\d.-]/g,''))||0,uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const nm=k=>k.split(' › ').pop().replace(/\s*\(.*\)$/,'').replace(/\.\w+$/,'').toLowerCase();
+const tb=n=>{for(const [k,t] of S.tables)if(nm(k)===n)return t};
+const ci=(t,c)=>t.cols.findIndex(x=>x.toLowerCase()===c);
+const dt=v=>{const m=(v instanceof Date?v.toISOString():String(v??'')).match(/\d{4}-\d{2}-\d{2}/);return m?m[0]:''};
+let KL=[],DK='TN',SRT=null,LRC=null;
+const lim=(id,tot,cols)=>{if(tot>20)$(id).insertAdjacentHTML('beforeend',`<tr><td colspan="${cols}" style="padding:8px;opacity:.7;font-size:.78rem">+ ${fmtNum(tot-20)} baris lainnya tidak ditampilkan — gunakan filter / pilih bulan</td></tr>`)};
+const nonKas=()=>new Set((localStorage.getItem('ks_nonkas')??'HT,PH,SH,UM').split(',').map(s=>s.trim().toUpperCase()).filter(Boolean));
+function refKas(){const t=tb('kas');let l=[];if(t){const a=ci(t,'kode'),b=ci(t,'nama'),c=ci(t,'saldo');l=t.rows.filter(r=>r[a]).map(r=>({k:String(r[a]).trim(),n:String(r[b]||''),s:num(r[c])}))}
+  if(!l.length)l=[{k:'TN',n:'TUNAI',s:null},{k:'BN',n:'BANK',s:null},{k:'KP',n:'KAS PERUSAHAAN',s:null}];
+  KL=l;DK=(l.find(x=>x.k==='TN')||l.find(x=>!nonKas().has(x.k.toUpperCase()))||l[0]).k}
+const kasOf=r=>r[8]||DK;
+function ledger(k){const L=[];(SRT||(SRT=R.slice().sort((a,b)=>String(a[1]).localeCompare(String(b[1]))))).forEach(r=>{const jn=r[2],j=+r[6]||0,sg=JN[jn]?JN[jn][1]:0;
+  if(jn==='MUTASI_KAS'){if(r[8]===k)L.push([r,0,j,'Mutasi ke '+r[9]]);else if(r[9]===k)L.push([r,j,0,'Mutasi dari '+r[8]])}
+  else if(sg&&kasOf(r)===k)L.push([r,sg>0?j:0,sg<0?j:0,''])});
+  let s=0;return L.map(x=>{s+=x[1]-x[2];return{r:x[0],d:x[1],c:x[2],s,t:x[3]}})}
+function calc(){
+  const o={kas:0,ks:{},hut:{},pit:{},pokok:0,wajib:0,bln:{},ang:{}};
+  for(const r of R){const [id,tgl,jn,pihak,akun,ket,jml]=r,j=+jml||0,m=String(tgl).slice(0,7),sg=JN[jn]?JN[jn][1]:0;
+    const b=o.bln[m]||(o.bln[m]={masuk:0,keluar:0,pokok:0,wajib:0,ops:0,beli:0,bayar:0});
+    const kk=kasOf(r);if(jn==='MUTASI_KAS'){o.ks[kk]=(o.ks[kk]||0)-j;o.ks[r[9]]=(o.ks[r[9]]||0)+j}else if(sg)o.ks[kk]=(o.ks[kk]||0)+sg*j;
+    if(sg>0&&jn!=='SALDO_AWAL')b.masuk+=j;if(sg<0)b.keluar+=j;
+    if(jn==='SIMPANAN_POKOK'||jn==='SIMPANAN_WAJIB'){const k=jn==='SIMPANAN_POKOK'?'pokok':'wajib';o[k]+=j;b[k]+=j;
+      const a=o.ang[pihak]||(o.ang[pihak]={pokok:0,wajib:0,bi:0,bw:0});a[k]+=j;if(m===F.bln)a[k==='pokok'?'bi':'bw']+=j}
+    if(jn==='BIAYA_OPS')b.ops+=j;
+    if(jn==='BELI_KREDIT'){o.hut[pihak]=(o.hut[pihak]||0)+j;b.beli+=j}
+    if(jn==='BAYAR_HUTANG'){o.hut[pihak]=(o.hut[pihak]||0)-j;b.bayar+=j}
+    if(jn==='PIUTANG_BARU')o.pit[pihak]=(o.pit[pihak]||0)+j;
+    if(jn==='BAYAR_PIUTANG')o.pit[pihak]=(o.pit[pihak]||0)-j}
+  const nk=nonKas();o.kas=Object.entries(o.ks).filter(e=>!nk.has(String(e[0]).toUpperCase())).reduce((s,e)=>s+e[1],0);
+  return o}
+function impSql(){
+  const have=new Set(R.map(r=>r[7]).filter(Boolean)),sup=new Map(),c={b:0,k:0,m:0};
+  const bn=new Map();{const tbi=tb('biaya');if(tbi){const a=ci(tbi,'kode'),b=ci(tbi,'nama');tbi.rows.forEach(r=>bn.set(String(r[a]),r[b]))}}
+  const pn=new Map();{const tp=tb('pelanggan');if(tp){const a=ci(tp,'kode'),b=ci(tp,'nama');tp.rows.forEach(r=>pn.set(String(r[a]),r[b]))}}
+  const ts=tb('supplier');if(ts){const a=ci(ts,'kode'),b=ci(ts,'nama');ts.rows.forEach(r=>sup.set(String(r[a]),r[b]))}
+  const add=(tgl,jn,pihak,akun,ket,jml,ref,kas)=>{if(have.has(ref)||!(+jml>0))return false;have.add(ref);R.push([uid(),tgl||new Date().toISOString().slice(0,10),jn,pihak,akun,ket,+jml,ref,kas?String(kas).trim():'','','SQL']);return true};
+  let t=tb('pembelian');if(t){const i={k:ci(t,'kode'),t:ci(t,'tanggal'),s:ci(t,'supplier'),j:ci(t,'jumlah'),l:ci(t,'lunas'),h:ci(t,'hutang'),e:ci(t,'keterangan'),kk:ci(t,'kode_kas')};
+    t.rows.forEach(r=>{const tot=num(r[i.j]),lun=/^(1|y|yes|true|lunas|t)$/i.test(String(r[i.l]??'').trim()),h=lun?0:Math.min(tot,(i.h<0||r[i.h]===''||r[i.h]==null)?tot:num(r[i.h])),paid=tot-h,p=sup.get(String(r[i.s]))||r[i.s]||'-',d=dt(r[i.t]);
+      if(add(d,'BELI_KREDIT',p,'',r[i.e]||'Pembelian '+r[i.k],h,'pembelian:'+r[i.k]))c.b++;
+      add(d,'KAS_KELUAR',p,'Pembelian barang','Bayar pembelian '+r[i.k],paid,'pembelian-kas:'+r[i.k],r[i.kk])})}
+  t=tb('penjualan');if(t){const i={t:ci(t,'tanggal'),j:ci(t,'jumlah'),sb:ci(t,'subtotal'),d:ci(t,'diskon_rupiah'),x:ci(t,'tax_rupiah'),p:ci(t,'piutang'),kk:ci(t,'kode_kas'),k:ci(t,'kode'),n:ci(t,'nama_pelanggan'),pl:ci(t,'pelanggan')},day=new Map();
+    t.rows.forEach(r=>{const tot=num(r[i.j])||Math.max(0,num(r[i.sb])-num(r[i.d])+num(r[i.x])),paid=tot-Math.min(tot,Math.max(0,num(r[i.p]))),d=dt(r[i.t]);if(!d)return;const bal=Math.min(tot,Math.max(0,num(r[i.p])));if(bal>0)add(d,'PIUTANG_BARU',pn.get(String(r[i.pl]))||r[i.n]||String(r[i.pl]||'-'),'','Penjualan kredit '+r[i.k],bal,'piutang:'+r[i.k]);const kk=String(r[i.kk]||''),ky=d+'|'+kk,o=day.get(ky)||{s:0,n:0,kk};o.s+=paid;o.n++;day.set(ky,o)});
+    day.forEach((o,ky)=>{if(add(ky.split('|')[0],'KAS_MASUK','','Penjualan','Penjualan tunai harian ('+o.n+' faktur)',o.s,'penjualan:'+ky,o.kk))c.p=(c.p||0)+1})}
+  t=tb('mutasikas');if(t){const i={k:ci(t,'kode'),t:ci(t,'tanggal'),d:ci(t,'debet'),c:ci(t,'kredit'),e:ci(t,'keterangan'),j:ci(t,'rupiah')};
+    t.rows.forEach(r=>{const ref='mutasikas:'+r[i.k],j=num(r[i.j]);if(have.has(ref)||!(j>0))return;have.add(ref);
+      R.push([uid(),dt(r[i.t])||new Date().toISOString().slice(0,10),'MUTASI_KAS',r[i.c]+' → '+r[i.d],String(r[i.k]||''),r[i.e]||'',j,ref,String(r[i.c]||'').trim(),String(r[i.d]||'').trim(),'SQL']);c.u=(c.u||0)+1})}
+  t=tb('hutang');if(t){const i={k:ci(t,'kode'),t:ci(t,'tanggal'),s:ci(t,'supplier'),j:ci(t,'jumlah'),kk:ci(t,'kode_kas'),e:ci(t,'ket')};
+    t.rows.forEach(r=>{if(add(dt(r[i.t]),'KAS_KELUAR',sup.get(String(r[i.s]))||r[i.s]||'-','Bayar hutang supplier',r[i.e]||'Pembayaran hutang '+r[i.k],num(r[i.j]),'hutang:'+r[i.k],r[i.kk]))c.h=(c.h||0)+1})}
+  t=tb('piutang');if(t){const i={k:ci(t,'kode'),t:ci(t,'tanggal'),p:ci(t,'pelanggan'),j:ci(t,'jumlah'),kk:ci(t,'kode_kas'),e:ci(t,'ket')};
+    t.rows.forEach(r=>{if(add(dt(r[i.t]),'KAS_MASUK',pn.get(String(r[i.p]))||r[i.p]||'-','Terima bayar piutang',r[i.e]||'Pembayaran piutang '+r[i.k],num(r[i.j]),'piutang-bayar:'+r[i.k],r[i.kk]))c.h=(c.h||0)+1})}
+  t=tb('return_pembelian');if(t){const i={k:ci(t,'kode'),t:ci(t,'tanggal'),s:ci(t,'supplier'),j:ci(t,'jumlah'),kk:ci(t,'kode_kas'),e:ci(t,'alasan')};
+    t.rows.forEach((r,x)=>{if(add(dt(r[i.t]),'KAS_MASUK',sup.get(String(r[i.s]))||r[i.s]||'-','Retur pembelian',r[i.e]||'Retur pembelian '+r[i.k],num(r[i.j]),'retur-beli:'+r[i.k]+'#'+x,r[i.kk]))c.rt=(c.rt||0)+1})}
+  t=tb('return_penjualan');if(t){const i={k:ci(t,'kode'),t:ci(t,'tanggal'),j:ci(t,'jumlah'),e:ci(t,'alasan')};
+    t.rows.forEach((r,x)=>{if(add(dt(r[i.t]),'KAS_KELUAR','','Retur penjualan',r[i.e]||'Retur penjualan '+r[i.k],num(r[i.j]),'retur-jual:'+r[i.k]+'#'+x))c.rt=(c.rt||0)+1})}
+  t=tb('pembayaran_angsuran');if(t){const i={k:ci(t,'kode'),t:ci(t,'tanggal'),p:ci(t,'kode_pelanggan'),j:ci(t,'jumlah')};t.rows.forEach(r=>{if(add(dt(r[i.t]),'KAS_MASUK',pn.get(String(r[i.p]))||String(r[i.p]||'-'),'Angsuran piutang','Angsuran '+r[i.k],num(r[i.j]),'angsuran:'+r[i.k]))c.a=(c.a||0)+1})}
+  t=tb('pengeluaran');if(t){const i={k:ci(t,'kode'),t:ci(t,'tanggal'),b:ci(t,'kd_biaya'),e:ci(t,'keterangan'),j:ci(t,'jumlah'),kk:ci(t,'kode_kas')};
+    t.rows.forEach(r=>{if(add(dt(r[i.t]),'BIAYA_OPS','',bn.get(String(r[i.b]))||r[i.b]||'',r[i.e]||'',num(r[i.j]),'pengeluaran:'+r[i.k],r[i.kk]))c.k++})}
+  t=tb('pemasukan');if(t){const i={k:ci(t,'kode'),t:ci(t,'tanggal'),b:ci(t,'kd_biaya'),e:ci(t,'keterangan'),j:ci(t,'jumlah'),kk:ci(t,'kode_kas')};
+    t.rows.forEach(r=>{if(add(dt(r[i.t]),'KAS_MASUK','',bn.get(String(r[i.b]))||r[i.b]||'',r[i.e]||'',num(r[i.j]),'pemasukan:'+r[i.k],r[i.kk]))c.m++})}
+  t=tb('kas_awal');if(t){const i={k:ci(t,'kode_kas'),s:ci(t,'saldo'),t:ci(t,'tanggal')};t.rows.forEach(r=>{if(add(dt(r[i.t]),'SALDO_AWAL','','','Saldo awal kas '+r[i.k],num(r[i.s]),'kas_awal:'+r[i.k],r[i.k]))c.s=(c.s||0)+1})}
+  save();return c}
+function lr(){
+  if(LRC)return LRC;
+  const P=tb('penjualan'),I=tb('itempenjualan'),o={};if(!P)return o;
+  const i={k:ci(P,'kode'),t:ci(P,'tanggal'),j:ci(P,'jumlah'),sb:ci(P,'subtotal'),d:ci(P,'diskon_rupiah'),x:ci(P,'tax_rupiah')},dm=new Map();
+  P.rows.forEach(r=>{const m=dt(r[i.t]).slice(0,7);if(!m)return;const tot=num(r[i.j])||Math.max(0,num(r[i.sb])-num(r[i.d])+num(r[i.x]));dm.set(String(r[i.k]),m);(o[m]||(o[m]={p:0,h:0})).p+=tot});
+  if(I){const q={k:ci(I,'kode'),h:ci(I,'hpp'),q:ci(I,'qty')};if(q.h>=0)I.rows.forEach(r=>{const m=dm.get(String(r[q.k]));if(m)o[m].h+=num(r[q.h])*num(r[q.q])})}
+  return LRC=o}
+function view(){
+  SRT=null;refKas();const o=calc(),pb=o.bln[F.bln]||{ops:0,pokok:0,wajib:0},hut=Object.entries(o.hut).filter(e=>Math.abs(e[1])>0.5).sort((a,b)=>b[1]-a[1]),th=hut.reduce((s,e)=>s+e[1],0);
+  const tp=Object.values(o.pit).reduce((s,v)=>s+v,0);
+  const kp=(l,v,c)=>`<div class="tc" style="flex:1;min-width:150px;margin:0"><div style="font-size:.74rem;opacity:.7">${l}</div><div style="font-size:1.15rem;font-weight:700;${c||''}">${fmtRp(v)}</div></div>`;
+  $('jKpi').innerHTML=kp('Saldo kas riil',o.kas,o.kas<0?'color:#f87171':'')+kp('Hutang supplier belum dibayar',th)+kp('Piutang pelanggan',tp)+kp('Simpanan pokok (total)',o.pokok)+kp('Simpanan wajib (total)',o.wajib)+kp('Biaya operasional '+F.bln,pb.ops);
+  $('jHut').innerHTML=hut.slice(0,20).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="ib-n">${fmtRp(v)}</td></tr>`).join('')||'<tr><td colspan="2" style="padding:12px;opacity:.7">Tidak ada hutang tercatat.</td></tr>';
+  const codes=[...new Set([...KL.map(x=>x.k),...R.map(kasOf),...R.filter(r=>r[2]==='MUTASI_KAS').map(r=>r[9])])].filter(Boolean),nk=nonKas();
+  $('jKas').innerHTML=codes.map(k=>{const L=ledger(k);let aw=0,ms=0,kl=0,mi=0,mo=0;L.forEach(x=>{const jn=x.r[2];if(jn==='MUTASI_KAS'){mi+=x.d;mo+=x.c}else if(jn==='SALDO_AWAL')aw+=x.d;else{ms+=x.d;kl+=x.c}});
+    const sl=aw+ms-kl+mi-mo,m=KL.find(z=>z.k===k),sq=m&&m.s!=null?m.s:null;
+    return`<tr><td><b>${esc(k)}</b>${nk.has(k.toUpperCase())?' <span class="badge by">non-kas</span>':''}</td><td>${esc(m?m.n:'')}</td><td class="ib-n">${fmtRp(aw)}</td><td class="ib-n">${fmtRp(ms)}</td><td class="ib-n">${fmtRp(kl)}</td><td class="ib-n">${fmtRp(mi)}</td><td class="ib-n">${fmtRp(mo)}</td><td class="ib-n" style="font-weight:700">${fmtRp(sl)}</td><td class="ib-n">${sq==null?'–':fmtRp(sq)}</td><td class="ib-n">${sq==null?'–':fmtRp(sl-sq)}</td></tr>`}).join('');
+  if(!F.bk||!codes.includes(F.bk))F.bk=codes[0]||'';
+  $('jBKs').innerHTML=codes.map(k=>`<option value="${esc(k)}"${k===F.bk?' selected':''}>${esc(k)}${(KL.find(z=>z.k===k)||{}).n?' — '+esc(KL.find(z=>z.k===k).n):''}</option>`).join('');
+  const LG=ledger(F.bk);$('jBK').innerHTML=LG.slice(-20).reverse().map(x=>`<tr><td>${esc(x.r[1])}</td><td>${esc((JN[x.r[2]]||[x.r[2]])[0])}${x.t?' · '+esc(x.t):''}</td><td>${esc(x.r[3])}</td><td>${esc(x.r[5])}</td><td class="ib-n">${x.d?fmtRp(x.d):''}</td><td class="ib-n">${x.c?fmtRp(x.c):''}</td><td class="ib-n" style="font-weight:600">${fmtRp(x.s)}</td></tr>`).join('')||'<tr><td colspan="7" style="padding:12px;opacity:.7">Belum ada transaksi pada kas ini.</td></tr>';
+  const pitN=Object.values(o.pit).filter(v=>Math.abs(v)>0.5).length;
+  $('jPit').innerHTML=Object.entries(o.pit).filter(e=>Math.abs(e[1])>0.5).sort((a,b)=>b[1]-a[1]).slice(0,20).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="ib-n">${fmtRp(v)}</td></tr>`).join('')||'<tr><td colspan="2" style="padding:12px;opacity:.7">Tidak ada piutang tercatat.</td></tr>';
+  $('jBln').innerHTML=Object.keys(o.bln).sort().reverse().map(m=>{const b=o.bln[m];return`<tr><td>${m}</td><td class="ib-n">${fmtRp(b.pokok)}</td><td class="ib-n">${fmtRp(b.wajib)}</td><td class="ib-n">${fmtRp(b.ops)}</td><td class="ib-n">${fmtRp(b.masuk)}</td><td class="ib-n">${fmtRp(b.keluar)}</td><td class="ib-n">${fmtRp(b.beli)}</td><td class="ib-n">${fmtRp(b.bayar)}</td></tr>`}).join('');
+  const L2=lr(),ms=[...new Set([...Object.keys(L2),...Object.keys(o.bln).filter(m=>o.bln[m].ops)])].sort().reverse();
+  $('jLR').innerHTML=ms.map(m=>{const a=L2[m]||{p:0,h:0},ops=(o.bln[m]||{}).ops||0,gp=a.p-a.h,nb=gp-ops;return`<tr><td>${m}</td><td class="ib-n">${fmtRp(a.p)}</td><td class="ib-n">${fmtRp(a.h)}</td><td class="ib-n">${fmtRp(gp)}</td><td class="ib-n">${fmtRp(ops)}</td><td class="ib-n" style="font-weight:700;${nb<0?'color:#f87171':''}">${fmtRp(nb)}</td></tr>`}).join('')||'<tr><td colspan="6" style="padding:12px;opacity:.7">Muat data SQL penjualan untuk melihat laba rugi.</td></tr>';
+  $('jAng').innerHTML=Object.entries(o.ang).sort((a,b)=>a[0].localeCompare(b[0])).slice(0,20).map(([k,a])=>`<tr><td>${esc(k)}</td><td class="ib-n">${fmtRp(a.bi)}</td><td class="ib-n">${fmtRp(a.bw)}</td><td class="ib-n">${fmtRp(a.pokok)}</td><td class="ib-n">${fmtRp(a.wajib)}</td><td class="ib-n">${fmtRp(a.pokok+a.wajib)}</td></tr>`).join('')||'<tr><td colspan="6" style="padding:12px;opacity:.7">Belum ada simpanan tercatat.</td></tr>';
+  const LA=R.filter(r=>String(r[1]).startsWith(F.bln)&&(!F.jn||r[2]===F.jn)).sort((a,b)=>String(b[1]).localeCompare(String(a[1])));const L=LA.slice(0,20);
+  $('jRows').innerHTML=L.map(r=>`<tr><td>${esc(r[1])}</td><td>${esc((JN[r[2]]||[r[2]])[0])}</td><td>${esc(r[2]==='MUTASI_KAS'?r[8]+' → '+r[9]:kasOf(r))}</td><td>${esc(r[3])}</td><td>${esc(r[4])}</td><td>${esc(r[5])}</td><td class="ib-n">${fmtRp(r[6])}</td><td><button class="btn btn-ol btn-sm" data-d="${r[0]}" type="button">Hapus</button></td></tr>`).join('')||'<tr><td colspan="8" style="padding:12px;opacity:.7">Belum ada entri pada bulan/jenis ini.</td></tr>';
+  lim('jRows',LA.length,8);lim('jBK',LG.length,7);lim('jAng',Object.keys(o.ang).length,6);lim('jPit',pitN,2);lim('jHut',hut.length,2)}
+function add(){
+  const v=id=>$(id).value.trim(),j=num(v('jJml'));
+  if(!v('jTgl')||!j)return toast('Isi tanggal dan jumlah.',true);
+  if(/HUTANG|KREDIT|PIUTANG/.test(v('jJn'))&&!v('jPihak'))return toast('Isi nama supplier / pelanggan.',true);
+  if(/SIMPANAN/.test(v('jJn'))&&!v('jPihak'))return toast('Isi nama/kode anggota.',true);
+  R.push([uid(),v('jTgl'),v('jJn'),v('jPihak'),v('jAkun'),v('jKet'),j,'',v('jKas0'),'',(CU&&(CU.username||CU.name))||'']);save();
+  ['jJml','jKet'].forEach(i=>$(i).value='');F.bln=v('jTgl').slice(0,7);$('jBulan').value=F.bln;view();toast('Entri disimpan')}
+async function syncDrive(replace){
+  const m=$('jMsg');
+  if(!USE_BACKEND||!SESSION_TOKEN){m.textContent='Belum terhubung ke backend — login online dulu.';return}
+  if(replace&&!confirm('Timpa seluruh jurnal di Google Drive dengan data lokal?'))return;
+  m.textContent='Menyinkronkan…';
+  const r=await api('importJurnalSave',{rows:R,replace:!!replace});
+  if(!r||!r.ok){m.textContent=(r&&r.error)||'Gagal sinkron — pastikan online dan kopsus-backend.gs terbaru sudah di-deploy.';return}
+  R=r.rows;save();view();m.textContent=`✓ Sinkron selesai: ${r.count} entri (lokal dan Drive sama).`;
+}
+function addMut(){
+  const v=id=>$(id).value.trim(),j=num(v('jMJml')),adm=num(v('jMAdm')),a=v('jMDari'),b=v('jMKe');
+  if(!v('jMTgl')||!j)return toast('Isi tanggal dan jumlah mutasi.',true);
+  if(a===b)return toast('Kas asal dan tujuan harus berbeda.',true);
+  const id=uid(),by=(CU&&(CU.username||CU.name))||'';
+  R.push([id,v('jMTgl'),'MUTASI_KAS',a+' → '+b,v('jMBukti'),v('jMKet'),j,'mutasi:'+id,a,b,by]);
+  if(adm>0)R.push([uid(),v('jMTgl'),'BIAYA_OPS','','Biaya administrasi','Biaya admin mutasi '+a+' → '+b+(v('jMBukti')?' ('+v('jMBukti')+')':''),adm,'mutasi:'+id+':adm',a,'',by]);
+  save();['jMJml','jMAdm','jMBukti','jMKet'].forEach(i=>$(i).value='');F.bln=v('jMTgl').slice(0,7);$('jBulan').value=F.bln;view();toast('Mutasi kas disimpan');
+}
+window.pgJurnal=async function(){
+  const pc=$('pageContent');
+  if(!(CU&&(CU.role==='Admin'||CU.role==='Manager'))){pc.innerHTML='<div class="tc"><p style="color:#f87171">Akses ditolak — hanya Admin &amp; Manager.</p></div>';return}
+  await ready;LRC=null;refKas();
+  const kopt=KL.map(x=>`<option value="${esc(x.k)}">${esc(x.k)} — ${esc(x.n)}</option>`).join('');
+  const names=[...new Set([...(tb('supplier')?tb('supplier').rows.map(r=>r[ci(tb('supplier'),'nama')]):[]),...(tb('pelanggan')?tb('pelanggan').rows.map(r=>r[ci(tb('pelanggan'),'nama')]):[])].filter(Boolean))].slice(0,3000);
+  const opt=Object.entries(JN).map(([k,v])=>`<option value="${k}">${v[0]}</option>`).join('');
+  pc.innerHTML=`<div class="ph"><h1>Jurnal</h1><p>Kas, hutang supplier, simpanan pokok &amp; wajib, dan biaya operasional. Tersimpan di browser (offline)</p></div>
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px" id="jKpi"></div>
+<div class="tc"><h3>Tambah entri</h3><div class="ib-g">
+<label>Tanggal<input class="fc" type="date" id="jTgl" value="${new Date().toISOString().slice(0,10)}"></label>
+<label>Jenis<select class="fc" id="jJn">${opt.replace(/<option value="MUTASI_KAS">.*?<\/option>/,'')}</select></label>
+<label>Akun kas<select class="fc" id="jKas0">${kopt}</select></label>
+<label>Supplier / Anggota<input class="fc" id="jPihak" list="jNames" placeholder="nama supplier atau anggota"></label>
+<label>Kategori / akun<input class="fc" id="jAkun" placeholder="mis. Listrik, Gaji, ATK"></label>
+<label>Keterangan<input class="fc" id="jKet"></label>
+<label>Jumlah (Rp)<input class="fc" id="jJml" inputmode="decimal"></label></div>
+<datalist id="jNames">${names.map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
+<div class="btn-grp" style="margin-top:12px"><button class="btn btn-pr" id="jAdd" type="button">Simpan entri</button><button class="btn btn-ol" id="jImp" type="button"><i class="fas fa-database"></i> Ambil dari SQL</button><button class="btn btn-ol" id="jRst" type="button"><i class="fas fa-rotate"></i> Muat ulang dari SQL</button><button class="btn btn-ol" id="jSync" type="button"><i class="fas fa-cloud-arrow-up"></i> Sinkron ke Drive</button><button class="btn btn-ol" id="jPush" type="button">Timpa Drive dgn lokal</button><button class="btn btn-ol" id="jXls" type="button"><i class="fas fa-file-excel"></i> Unduh Excel</button></div><div class="ib-msg" id="jMsg"></div></div>
+<div class="tc"><h3>Saldo per akun kas</h3><div style="font-size:.76rem;opacity:.75;margin-bottom:8px">Daftar kas dari tabel <b>kas</b> di SQL (ubah/tambah lewat menu Data SQL). Akun bukan kas riil (tidak dihitung di "Saldo kas riil"): <input class="fc" id="jNK" style="width:150px;display:inline-block;padding:3px 8px" value="${esc([...nonKas()].join(','))}"></div><div class="ib-tw"><table><thead><tr><th>Kode</th><th>Nama</th><th class="ib-n">Saldo awal</th><th class="ib-n">Masuk</th><th class="ib-n">Keluar</th><th class="ib-n">Mutasi masuk</th><th class="ib-n">Mutasi keluar</th><th class="ib-n">Saldo jurnal</th><th class="ib-n">Saldo master SQL</th><th class="ib-n">Selisih</th></tr></thead><tbody id="jKas"></tbody></table></div></div>
+<div class="tc"><h3>Mutasi antar kas</h3><div class="ib-g">
+<label>Tanggal<input class="fc" type="date" id="jMTgl" value="${new Date().toISOString().slice(0,10)}"></label>
+<label>Dari kas<select class="fc" id="jMDari">${kopt}</select></label>
+<label>Ke kas<select class="fc" id="jMKe">${kopt}</select></label>
+<label>Jumlah (Rp)<input class="fc" id="jMJml" inputmode="decimal"></label>
+<label>Biaya admin (Rp, opsional)<input class="fc" id="jMAdm" inputmode="decimal"></label>
+<label>No. bukti<input class="fc" id="jMBukti"></label>
+<label>Keterangan<input class="fc" id="jMKet"></label></div>
+<div class="btn-grp" style="margin-top:12px"><button class="btn btn-pr" id="jMAdd" type="button"><i class="fas fa-right-left"></i> Simpan mutasi</button></div></div>
+<div class="tc"><h3>Buku kas (rincian per akun, saldo berjalan)</h3><div class="ib-g"><label>Akun kas<select class="fc" id="jBKs"></select></label></div><div class="ib-tw" style="margin-top:10px"><table><thead><tr><th>Tanggal</th><th>Jenis</th><th>Pihak</th><th>Keterangan</th><th class="ib-n">Masuk</th><th class="ib-n">Keluar</th><th class="ib-n">Saldo</th></tr></thead><tbody id="jBK"></tbody></table></div></div>
+<div class="tc"><h3>Hutang supplier belum dibayar</h3><div class="ib-tw"><table><thead><tr><th>Supplier</th><th class="ib-n">Sisa hutang</th></tr></thead><tbody id="jHut"></tbody></table></div></div>
+<div class="tc"><h3>Piutang pelanggan belum dibayar</h3><div class="ib-tw"><table><thead><tr><th>Pelanggan</th><th class="ib-n">Sisa piutang</th></tr></thead><tbody id="jPit"></tbody></table></div></div>
+<div class="tc"><h3>Rekap per bulan</h3><div class="ib-tw"><table><thead><tr><th>Bulan</th><th class="ib-n">Simp. pokok</th><th class="ib-n">Simp. wajib</th><th class="ib-n">Biaya ops</th><th class="ib-n">Kas masuk</th><th class="ib-n">Kas keluar</th><th class="ib-n">Beli kredit</th><th class="ib-n">Bayar hutang</th></tr></thead><tbody id="jBln"></tbody></table></div></div>
+<div class="tc"><h3>Laba rugi per bulan (estimasi)</h3><div class="ib-tw"><table><thead><tr><th>Bulan</th><th class="ib-n">Penjualan</th><th class="ib-n">HPP</th><th class="ib-n">Laba kotor</th><th class="ib-n">Biaya ops</th><th class="ib-n">Laba bersih</th></tr></thead><tbody id="jLR"></tbody></table></div><div style="font-size:.74rem;opacity:.7;margin-top:6px">Penjualan = total faktur (tunai + kredit); HPP = hpp × qty dari item penjualan; biaya ops dari jurnal.</div></div>
+<div class="tc"><h3>Simpanan per anggota</h3><div class="ib-tw"><table><thead><tr><th>Anggota</th><th class="ib-n">Pokok bln ini</th><th class="ib-n">Wajib bln ini</th><th class="ib-n">Total pokok</th><th class="ib-n">Total wajib</th><th class="ib-n">Total</th></tr></thead><tbody id="jAng"></tbody></table></div></div>
+<div class="tc"><h3>Entri jurnal</h3><div class="ib-g"><label>Bulan<input class="fc" type="month" id="jBulan" value="${F.bln}"></label><label>Jenis<select class="fc" id="jFj"><option value="">Semua</option>${opt}</select></label></div>
+<div class="ib-tw" style="margin-top:10px"><table><thead><tr><th>Tanggal</th><th>Jenis</th><th>Kas</th><th>Pihak</th><th>Kategori / No. bukti</th><th>Keterangan</th><th class="ib-n">Jumlah</th><th></th></tr></thead><tbody id="jRows"></tbody></table></div></div>`;
+  $('jAdd').onclick=add;
+  $('jBulan').onchange=e=>{F.bln=e.target.value||F.bln;view()};$('jFj').onchange=e=>{F.jn=e.target.value;view()};
+  $('jRows').onclick=e=>{const b=e.target.closest('[data-d]');if(b&&confirm('Hapus entri ini?')){const d0=R.find(r=>r[0]===b.dataset.d);R=R.filter(r=>r[0]!==b.dataset.d&&!(d0&&d0[7]&&r[7]===d0[7]+':adm'));save();view()}};
+  $('jImp').onclick=()=>{if(!S.tables.size)return $('jMsg').textContent='Belum ada data SQL — muat dulu di menu Impor Belanja.';const c=impSql();$('jMsg').textContent=`Ditambahkan: ${c.b} pembelian kredit (hutang), ${c.p||0} hari penjualan (kas masuk), ${c.k} pengeluaran, ${c.m} pemasukan, ${c.s||0} saldo awal kas, ${c.a||0} angsuran pelanggan, ${c.u||0} mutasi kas, ${c.h||0} pembayaran hutang/piutang, ${c.rt||0} retur. Entri yang sudah pernah diambil dilewati.`;view()};
+  $('jMAdd').onclick=addMut;$('jMKe').selectedIndex=Math.min(1,KL.length-1);
+  $('jBKs').onchange=e=>{F.bk=e.target.value;view()};$('jNK').onchange=e=>{localStorage.setItem('ks_nonkas',e.target.value);view()};
+  $('jSync').onclick=()=>syncDrive(false);$('jPush').onclick=()=>syncDrive(true);
+  $('jRst').onclick=()=>{if(!confirm('Hapus semua entri hasil impor SQL lalu muat ulang dari data SQL terbaru? Entri manual tidak terhapus.'))return;R=R.filter(r=>!/^(pembelian|pembelian-kas|penjualan|piutang|angsuran|mutasikas|piutang-bayar|hutang|retur-beli|retur-jual|pengeluaran|pemasukan|kas_awal):/.test(r[7]||''));$('jImp').onclick()};
+  $('jXls').onclick=()=>{if(typeof XLSX==='undefined')return toast('Library Excel belum termuat.',true);const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Tanggal','Jenis','Pihak','Kategori','Keterangan','Jumlah','Ref'],...R.map(r=>[r[1],(JN[r[2]]||[r[2]])[0],r[3],r[4],r[5],r[6],r[7]])]),'Jurnal');XLSX.writeFile(wb,'jurnal_kopsus.xlsx')};
+  view();
+};
+})();
+</script>
+
+<script>
+/* ═══ TAHAP 3 — Semua halaman membaca data dari SQL lokal (offline) ═══ */
+(function(){
+const S=KopImport.S;let cache=null;
+const nm=k=>k.split(' › ').pop().replace(/\s*\(.*\)$/,'').replace(/\.\w+$/,'').toLowerCase();
+const T=(n,keys)=>{for(const [k,t] of S.tables)if(nm(k)===n){const ix=[],seen={};t.cols.forEach((x,i)=>{const k2=x.toLowerCase();if(!seen[k2]&&(!keys||keys.includes(k2))){seen[k2]=1;ix.push([k2,i])}});return t.rows.map(r=>{const o={};for(let j=0;j<ix.length;j++)o[ix[j][0]]=r[ix[j][1]];return o})}return[]};
+const num=v=>Number(String(v??'').replace(/[^\d.-]/g,''))||0,lunas=v=>/^(1|y|yes|true|lunas|t)$/i.test(String(v??'').trim());
+const dmy=v=>{const m=(v instanceof Date?v.toISOString():String(v??'')).match(/(\d{4})-(\d{2})-(\d{2})/);return m?`${m[2]}/${m[3]}/${m[1]}`:''};   // MM/DD/YYYY — format yang dibaca Dashboard & halaman lain
+const sum=(m,k,v)=>m.set(k,(m.get(k)||0)+v);
+const sumBy=(m,n)=>{for(const [k,t] of S.tables)if(nm(k)===n){const a=t.cols.findIndex(x=>x.toLowerCase()==='kode_barang'),b=t.cols.findIndex(x=>x.toLowerCase()==='qty');if(a<0||b<0)return;for(const r of t.rows)sum(m,String(r[a]),num(r[b]));return}};
+function build(){
+  const sup=T('supplier',['kode','nama','kota','contact','telp','email','alamat']),pel=T('pelanggan',['kode','nama','telp','email','instansi','pekerjaan','area','alamat']),
+    brg=T('barang',['kode','nama','kategori','golongan','subgolongan1','satuan','toko','gudang','stokmin','stokmin_gudang','stokmax','stokmax_gudang','supplier']),
+    pbl=T('pembelian',['kode','tanggal','supplier','jumlah','lunas','hutang']),
+    pj=T('penjualan',['kode','tanggal','pelanggan','nama_pelanggan','jumlah','subtotal','diskon_rupiah','tax_rupiah','piutang']);
+  if(!(sup.length||pel.length||brg.length||pbl.length||pj.length))return null;
+  const IPB=()=>T('itempembelian',['kode','kode_barang','nama_barang','qty','harga_beli','subtotal']),IPJ=()=>T('itempenjualan',['kode','nourut','kode_barang','nama_barang','qty','harga','subtotal']);
+  const sN=new Map(sup.map(r=>[String(r.kode),r])),pN=new Map(pel.map(r=>[String(r.kode),r])),bN=new Map(brg.map(r=>[String(r.kode),r]));
+  const sales=new Map(),recv=new Map(),buy=new Map(),owe=new Map(),qB=new Map(),qJ=new Map(),SO=[],RC=[],PO=[],PY=[],soMap=new Map(),poMap=new Map();
+  pj.forEach(r=>{const tot=num(r.jumlah)||Math.max(0,num(r.subtotal)-num(r.diskon_rupiah)+num(r.tax_rupiah)),bal=Math.min(tot,Math.max(0,num(r.piutang))),paid=tot-bal,id=String(r.pelanggan),nama=r.nama_pelanggan||(pN.get(id)||{}).nama||id,d=dmy(r.tanggal);
+    sum(sales,id,tot);sum(recv,id,paid);const x={soDate:d,soId:r.kode,customerId:id,customerName:nama,invoiceNum:r.kode,state:(pN.get(id)||{}).instansi||'',city:(pN.get(id)||{}).pekerjaan||'',totalSOAmount:tot,totalReceived:paid,soBalance:bal,receiptStatus:bal>0?(paid>0?'Partial':'Pending'):'Received'};
+    SO.push(x);soMap.set(String(r.kode),x);
+    if(paid>0)RC.push({trxDate:d,trxId:'RT-'+r.kode,customerId:id,customerName:nama,state:x.state,city:x.city,soId:r.kode,invoiceNum:r.kode,pmtMode:'Tunai',amountReceived:paid})});
+  pbl.forEach(r=>{const tot=num(r.jumlah),h=lunas(r.lunas)?0:Math.min(tot,(r.hutang===''||r.hutang==null)?tot:num(r.hutang)),paid=tot-h,id=String(r.supplier),s=sN.get(id)||{},nama=s.nama||id,d=dmy(r.tanggal);
+    sum(buy,id,tot);sum(owe,id,h);const x={date:d,id:r.kode,supplierId:id,supplierName:nama,billNum:r.kode,state:'',city:s.kota||'',totalAmount:tot,totalPaid:paid,poBalance:h,pmtStatus:h>0?(paid>0?'Partial':'Unpaid'):'Paid',shippingStatus:'Delivered'};
+    PO.push(x);poMap.set(String(r.kode),x);
+    if(paid>0)PY.push({trxDate:d,trxId:'PT-'+r.kode,supplierId:id,supplierName:nama,state:'',city:x.city,poId:r.kode,billNum:r.kode,pmtMode:'Tunai',amountPaid:paid})});
+  sumBy(qB,'itempembelian');sumBy(qJ,'itempenjualan');
+  const CU2=pel.map(r=>{const id=String(r.kode),ts=sales.get(id)||0,tr=recv.get(id)||0;return{id,name:r.nama||id,contact:r.telp||'',email:r.email||'',state:r.instansi||'',city:r.pekerjaan||r.area||'',address:r.alamat||'',totalSales:ts,totalReceipts:tr,balance:ts-tr,createdBy:'SQL'}});
+  const SU=sup.map(r=>{const id=String(r.kode),tp=buy.get(id)||0,b=owe.get(id)||0;return{id,name:r.nama||id,contact:r.contact||r.telp||'',email:r.email||'',state:'',city:r.kota||'',address:r.alamat||'',totalPurchases:tp,totalPayments:tp-b,balance:b,createdBy:'SQL'}});
+  const ALR={minus:[],low:[]};
+  const IN=brg.map(r=>{const id=String(r.kode),qp=qB.get(id)||0,qs=qJ.get(id)||0,hasStok=('toko' in r)&&(r.toko!==''||r.gudang!==''),tk=hasStok?num(r.toko):qp-qs,gd=hasStok?num(r.gudang):0,rem=tk+gd,min=num(r.stokmin),mg=num(r.stokmin_gudang),mx=num(r.stokmax),mxg=num(r.stokmax_gudang);
+    const minus=tk<0||gd<0,low=!minus&&((min>0&&tk<=min)||(mg>0&&gd<=mg));
+    if(minus||low){const x={id,name:r.nama||id,kategori:r.kategori||'',satuan:r.satuan||'',supplier:(sN.get(String(r.supplier))||{}).nama||r.supplier||'',toko:tk,gudang:gd,min,mg,order:Math.max(0,mx-tk)+Math.max(0,mxg-gd),level:minus?'minus':'low'};(minus?ALR.minus:ALR.low).push(x)}
+    return{id,type:r.kategori||'',category:r.golongan||'',subcategory:r.subgolongan1||'',name:r.nama||id,qtyPurchased:qp,qtySold:qs,remainingQty:rem,reorderLevel:min,reorderRequired:minus||low}});
+  ALR.minus.sort((x,y)=>Math.min(x.toko,x.gudang)-Math.min(y.toko,y.gudang));ALR.low.sort((x,y)=>String(x.name).localeCompare(String(y.name)));
+  const PD=()=>IPB().map(r=>{const h=poMap.get(String(r.kode))||{},b=bN.get(String(r.kode_barang))||{};return{date:h.date||'',poId:r.kode,supplierId:h.supplierId||'',supplierName:h.supplierName||'',billNum:r.kode,state:'',city:h.city||'',itemId:r.kode_barang,itemName:r.nama_barang||b.nama||'',itemType:b.kategori||'',itemCategory:b.golongan||'',itemSubcategory:b.subgolongan1||'',qtyPurchased:num(r.qty),unitPrice:num(r.harga_beli),totalPurchasePrice:num(r.subtotal)}});
+  const SD=()=>IPJ().map(r=>{const h=soMap.get(String(r.kode))||{},b=bN.get(String(r.kode_barang))||{};return{soDate:h.soDate||'',soId:r.kode,detailId:r.kode+'-'+r.nourut,customerId:h.customerId||'',customerName:h.customerName||'',state:h.state||'',city:h.city||'',invoiceNum:r.kode,itemName:r.nama_barang||b.nama||'',itemId:r.kode_barang,itemType:b.kategori||'',itemCategory:b.golongan||'',itemSubcategory:b.subgolongan1||'',qtySold:num(r.qty),unitPrice:num(r.harga),priceInclTax:num(r.harga),shippingFees:0,totalSalesPrice:num(r.subtotal)}});
+  return{alerts:ALR,getInventory:IN,getSuppliers:SU,getCustomers:CU2,getPurchaseOrders:PO,getPurchaseDetails:PD,getSalesOrders:SO,getSalesDetails:SD,getReceipts:RC,getPayments:PY}}
+let bt=0;
+async function badge(){const a=await KopSQL.alerts(),n=a.minus.length+a.low.length,e=document.getElementById('stokBadge');if(e){e.textContent=n;e.style.display=n?'':'none';e.title=`${a.minus.length} minus · ${a.low.length} menipis`}}
+window.KopSQL={badge,reset(){cache=null;clearTimeout(bt);bt=setTimeout(badge,400)},
+  async active(){await KopDB.loadedP;if((localStorage.getItem('ks_src')||'sql')!=='sql')return false;return !!((await this.get('getSalesOrders'))||(await this.get('getInventory'))||(await this.get('getCustomers')))},
+  async alerts(){await KopDB.loadedP;if(cache===null){try{cache=build()||false}catch(e){console.warn('[KopSQL]',e);cache=false}}return cache&&cache.alerts?cache.alerts:{minus:[],low:[]}},
+  async get(action){await KopDB.loadedP;if((localStorage.getItem('ks_src')||'sql')!=='sql')return null;
+    if(cache===null){try{cache=build()||false}catch(e){console.warn('[KopSQL]',e);cache=false}}
+    let v=cache&&cache[action];if(typeof v==='function')v=cache[action]=v();return v&&v.length?v:null}};
+})();
+</script>
+
+<script>
+/* ═══ Alert Stok: minus & di bawah minimum, banner dashboard ═══ */
+(function(){
+const $=id=>document.getElementById(id);let F={q:'',lv:''},A={minus:[],low:[]};
+const rowsF=()=>{const q=F.q.trim().toLowerCase();return[...(F.lv==='low'?[]:A.minus),...(F.lv==='minus'?[]:A.low)].filter(x=>!q||`${x.id} ${x.name} ${x.supplier} ${x.kategori}`.toLowerCase().includes(q))};
+function draw(){const L=rowsF();
+  $('skB').innerHTML=L.slice(0,20).map(x=>`<tr><td>${x.level==='minus'?'<span style="background:#ef4444;color:#fff;border-radius:8px;padding:1px 8px;font-size:.72rem">MINUS</span>':'<span style="background:#f59e0b;color:#1a1a1a;border-radius:8px;padding:1px 8px;font-size:.72rem">MENIPIS</span>'}</td><td>${esc(x.id)}</td><td>${esc(x.name)}</td><td>${esc(x.supplier)}</td><td class="ib-n" style="${x.toko<0?'color:#f87171;font-weight:700':''}">${fmtNum(x.toko)}</td><td class="ib-n" style="${x.gudang<0?'color:#f87171;font-weight:700':''}">${fmtNum(x.gudang)}</td><td class="ib-n">${fmtNum(x.min)}</td><td class="ib-n">${fmtNum(x.mg)}</td><td class="ib-n">${x.order?fmtNum(x.order):'–'}</td><td>${esc(x.satuan)}</td></tr>`).join('')||'<tr><td colspan="10" style="padding:16px;opacity:.7">Tidak ada stok bermasalah (atau data SQL barang belum dimuat).</td></tr>';
+  $('skM').textContent=`${fmtNum(L.length)} item`+(L.length>20?' — menampilkan 20 teratas; pakai filter/cari untuk mempersempit (Excel memuat semuanya)':'')}
+window.pgStok=async function(){
+  A=await KopSQL.alerts();KopSQL.badge();
+  const kp=(l,v,c)=>`<div class="tc" style="flex:1;min-width:150px;margin:0"><div style="font-size:.74rem;opacity:.7">${l}</div><div style="font-size:1.3rem;font-weight:700;color:${c}">${fmtNum(v)}</div></div>`;
+  $('pageContent').innerHTML=`<div class="ph"><h1>Alert Stok</h1><p>Stok minus dan stok di bawah batas minimum, dari kolom toko / gudang / stokmin pada tabel barang</p></div>
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">${kp('Stok minus',A.minus.length,'#f87171')}${kp('Stok menipis',A.low.length,'#f59e0b')}</div>
+<div class="tc"><div class="ib-g"><label>Tampilkan<select class="fc" id="skLv"><option value="">Semua</option><option value="minus">Minus saja</option><option value="low">Menipis saja</option></select></label><label>Cari<input class="si" id="skQ" placeholder="Nama / kode / supplier..."></label></div>
+<div class="btn-grp" style="margin:12px 0"><button class="btn btn-ol btn-sm" id="skX" type="button"><i class="fas fa-file-excel"></i> Unduh Excel (daftar pesan)</button></div><div class="ib-msg" id="skM"></div>
+<div class="ib-tw"><table><thead><tr><th>Status</th><th>Kode</th><th>Nama barang</th><th>Supplier</th><th class="ib-n">Stok toko</th><th class="ib-n">Stok gudang</th><th class="ib-n">Min toko</th><th class="ib-n">Min gudang</th><th class="ib-n">Saran pesan</th><th>Sat</th></tr></thead><tbody id="skB"></tbody></table></div></div>`;
+  $('skLv').onchange=e=>{F.lv=e.target.value;draw()};$('skQ').oninput=e=>{F.q=e.target.value;draw()};
+  $('skX').onclick=()=>{if(typeof XLSX==='undefined')return toast('Library Excel belum termuat.',true);const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Status','Kode','Nama','Kategori','Supplier','Stok toko','Stok gudang','Min toko','Min gudang','Saran pesan','Satuan'],...rowsF().map(x=>[x.level==='minus'?'MINUS':'MENIPIS',x.id,x.name,x.kategori,x.supplier,x.toko,x.gudang,x.min,x.mg,x.order,x.satuan])]),'Alert Stok');XLSX.writeFile(wb,'alert_stok.xlsx')};
+  draw();
+};
+const _pd=window.pgDashboard;
+if(typeof _pd==='function')window.pgDashboard=async function(){
+  await _pd.apply(this,arguments);KopSQL.badge();
+  const a=await KopSQL.alerts();if(!(a.minus.length+a.low.length)||CP!=='dashboard')return;
+  const d=document.createElement('div');d.style.cssText='cursor:pointer;margin-bottom:14px;padding:12px 14px;border-radius:12px;background:rgba(245,158,11,.14);border-left:4px solid '+(a.minus.length?'#ef4444':'#f59e0b')+';font-size:.86rem';
+  d.innerHTML=`<b>⚠ Peringatan stok</b> — ${a.minus.length} item minus, ${a.low.length} item di bawah minimum. <u>Lihat daftar</u>`;d.onclick=()=>goto('stok');
+  const pc=$('pageContent');pc.insertBefore(d,pc.firstChild)};
+})();
+</script>
+<script>
+/* ═══ Menu bar atas: Berkas · Tampilan · Jendela · Bantuan (semua berfungsi) ═══ */
+(function(){
+const $=s=>document.querySelector(s),S=KopImport.S;let dd=null;
+const close=()=>{if(dd){dd.remove();dd=null}};
+const navOk=p=>{const n=$('#nav .ni[data-p="'+p+'"]');return !!(n&&getComputedStyle(n).display!=='none')};
+const go=p=>()=>{if(CU&&navOk(p))goto(p);else toast('Menu ini tidak tersedia untuk akun Anda.',true)};
+const src=()=>(localStorage.getItem('ks_src')||'sql')==='drive'?'drive':'sql';
+const refresh=()=>{try{KopSQL.reset()}catch(e){}invalidateCache();goto(CP);toast('Data halaman dimuat ulang')};
+function modal(title,html){close();const o=document.createElement('div');o.style.cssText='position:fixed;inset:0;z-index:5000;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px';
+  o.innerHTML=`<div class="tc" style="max-width:580px;width:100%;max-height:82vh;overflow:auto;margin:0"><div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">${title}</h3><button class="btn btn-ol btn-sm" type="button">✕</button></div><div style="margin-top:12px;font-size:.88rem;line-height:1.6">${html}</div></div>`;
+  o.onclick=e=>{if(e.target===o||e.target.closest('button'))o.remove()};document.body.append(o)}
+async function status(){
+  const tb=[...S.tables].map(([k,v])=>v.rows.length),rows=tb.reduce((a,b)=>a+b,0),j=await KopDB.get('__jurnal');
+  const r=(a,b)=>`<tr><td style="padding:4px 12px 4px 0;opacity:.75">${a}</td><td><b>${b}</b></td></tr>`;
+  modal('Status data & koneksi',`<table>${r('Pengguna',esc((CU&&(CU.username||CU.name))||'-')+' · '+esc((CU&&CU.role)||'-'))}${r('Sumber data halaman',src()==='drive'?'Google Drive (online / sinkronisasi)':'SQL lokal (offline)')}${r('Koneksi browser',navigator.onLine?'Online':'Offline')}${r('Tabel SQL tersimpan',fmtNum(S.tables.size)+' tabel · '+fmtNum(rows)+' baris')}${r('Entri jurnal',fmtNum(j&&j.rows?j.rows.length:0))}${r('Backend Google Drive',USE_BACKEND&&SESSION_TOKEN?'Terhubung (login aktif)':'Tidak terhubung')}</table>`)}
+const GUIDE=`<ol style="padding-left:18px;margin:0"><li><b>Muat data:</b> Berkas → <i>Muat file SQL / Excel</i> (Impor Belanja, langkah 1). Data otomatis tersimpan di browser dan bisa dibuka offline.</li><li><b>Cek &amp; ubah:</b> menu <i>Data SQL</i> untuk melihat, menambah, mengubah, menghapus baris; unduh kembali sebagai .sql / Excel.</li><li><b>Baca laporan:</b> Dashboard, Sales, Purchases, Reports, dll. membaca SQL offline. Tabel hanya menampilkan 20 baris; total dihitung dari semua data.</li><li><b>Jurnal:</b> kas per akun, mutasi antar kas, hutang supplier, piutang, simpanan pokok/wajib, biaya operasional. Tekan <i>Ambil dari SQL</i> untuk mengisi otomatis.</li><li><b>Alert Stok:</b> daftar stok minus dan di bawah minimum.</li><li><b>Sinkron online:</b> Impor Belanja → <i>Kirim ke Google Drive</i>; Jurnal → <i>Sinkron ke Drive</i>. Hanya berjalan saat Anda menekannya.</li><li><b>Cadangan:</b> Berkas → <i>Cadangkan semua data</i> secara berkala.</li></ol>`;
+const KEYS=[['Alt + D','Dashboard'],['Alt + I','Inventory'],['Alt + S','Sales'],['Alt + R','Reports'],['Alt + J','Jurnal'],['Alt + K','Alert Stok'],['Alt + T','Data SQL'],['Alt + U','Impor Belanja'],['Alt + G','Muat ulang data halaman'],['Esc','Tutup menu']];
+const MAP={d:'dashboard',i:'inventory',s:'sales',r:'reports',j:'jurnal',k:'stok',t:'datasql',u:'importbelanja'};
+const MENUS={
+  Berkas:()=>[{l:'Muat file SQL / Excel…',a:go('importbelanja')},{l:'Data SQL (lihat & edit)',a:go('datasql'),k:'Alt+T'},'-',
+    {l:'Cadangkan semua data (.json)',a:()=>KopDB.backup()},{l:'Pulihkan dari cadangan…',a:()=>{const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=()=>i.files[0]&&KopDB.restore(i.files[0]);i.click()}},'-',
+    {l:'Sinkron data belanja ke Google Drive…',a:go('importbelanja'),k:'Alt+U'},{l:'Sinkron Jurnal ke Google Drive…',a:go('jurnal')},'-',
+    {l:'Cetak halaman ini',a:()=>window.print()},'-',{l:'Keluar',a:()=>{const b=document.getElementById('logoutBtn');b&&b.click()}}],
+  Tampilan:()=>[{l:'Ganti tema terang / gelap',a:()=>{const b=$('#menubar .thb');b&&b.click()}},
+    {l:'Layar penuh',a:()=>{document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen()}},'-',
+    {l:'Muat ulang data halaman ini',a:refresh,k:'Alt+G'},'-',
+    {l:'Sumber data: SQL lokal (offline)',c:src()==='sql',a:()=>{localStorage.setItem('ks_src','sql');refresh()}},
+    {l:'Sumber data: Google Drive (online)',c:src()==='drive',a:()=>{localStorage.setItem('ks_src','drive');refresh()}}],
+  Jendela:()=>{const it=[...document.querySelectorAll('#nav .ni')].filter(n=>getComputedStyle(n).display!=='none'&&n.dataset.p).map(n=>({l:n.textContent.trim().replace(/\s+/g,' '),c:n.dataset.p===CP,a:()=>goto(n.dataset.p)}));
+    const t=document.querySelectorAll('.tbar .tl i');return[...it,'-',{l:'Kecilkan jendela',a:()=>t[1]&&t[1].click()},{l:'Perbesar / pulihkan jendela',a:()=>t[2]&&t[2].click()}]},
+  Bantuan:()=>[{l:'Panduan alur kerja',a:()=>modal('Panduan alur kerja',GUIDE)},{l:'Pintasan keyboard',a:()=>modal('Pintasan keyboard','<table>'+KEYS.map(k=>`<tr><td style="padding:3px 18px 3px 0"><b>${k[0]}</b></td><td>${k[1]}</td></tr>`).join('')+'</table>')},{l:'Status data & koneksi',a:status},'-',
+    {l:'Tentang KopSUS',a:()=>modal('Tentang KopSUS','<p>Aplikasi koperasi: inventory, penjualan &amp; pembelian, simpanan anggota, jurnal kas, dan laporan.</p><p>Mode utama <b>offline</b>: data SQL tersimpan di browser (IndexedDB) dan dibaca langsung tanpa koneksi. Sinkronisasi ke Google Drive / Sheets bersifat opsional dan hanya berjalan saat diminta.</p>')}]
+};
+document.querySelectorAll('#menubar>span').forEach(sp=>{const f=MENUS[sp.textContent.trim()];if(!f)return;
+  sp.style.cssText+=';cursor:pointer;pointer-events:auto;padding:2px 6px;border-radius:6px';
+  sp.onclick=e=>{e.stopPropagation();if(!CU)return;const same=dd&&dd.dataset.m===sp.textContent;close();if(same)return;open(sp,f())};
+  sp.onmouseenter=()=>{if(dd&&dd.dataset.m!==sp.textContent){close();open(sp,f())}}});
+function open(sp,items){close();const r=sp.getBoundingClientRect();dd=document.createElement('div');dd.id='mbDrop';dd.dataset.m=sp.textContent;
+  dd.style.cssText=`position:fixed;z-index:3300;top:${r.bottom+2}px;left:${r.left}px;min-width:250px;padding:6px;border-radius:12px;background:linear-gradient(135deg,var(--ga),var(--gb));-webkit-backdrop-filter:blur(18px) saturate(200%);backdrop-filter:blur(18px) saturate(200%);border:1px solid var(--rim);box-shadow:0 14px 36px var(--gs);color:var(--td);font-size:13px`;
+  dd.innerHTML=items.map((it,i)=>it==='-'?'<div style="height:1px;background:var(--bc);margin:5px 4px"></div>':`<div class="mbi" data-i="${i}" style="display:flex;justify-content:space-between;gap:18px;padding:6px 10px;border-radius:7px;cursor:pointer"><span>${it.c?'✓ ':'&nbsp;&nbsp;&nbsp;'}${esc(it.l)}</span><span style="opacity:.55">${it.k||''}</span></div>`).join('');
+  dd.onmouseover=e=>{const x=e.target.closest('.mbi');dd.querySelectorAll('.mbi').forEach(n=>n.style.background=n===x?'color-mix(in srgb,var(--sc,#34c759) 28%,transparent)':'')};
+  dd.onclick=e=>{const x=e.target.closest('.mbi');if(!x)return;const it=items[+x.dataset.i];close();it.a&&it.a()};
+  document.body.append(dd)}
+document.addEventListener('click',e=>{if(dd&&!e.target.closest('#mbDrop'))close()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')close();
+  if(!e.altKey||e.ctrlKey||e.metaKey||typeof CU==='undefined'||!CU)return;const k=e.key.toLowerCase();
+  if(k==='g'){e.preventDefault();refresh()}else if(MAP[k]&&navOk(MAP[k])){e.preventDefault();goto(MAP[k])}});
+})();
+</script>
+
 </body>
 </html>
