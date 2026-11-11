@@ -12,6 +12,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Poppins:wght@400;500;600&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>(function(){var t="dark";try{t=localStorage.getItem("ks_theme")||"dark"}catch(e){}document.documentElement.dataset.theme=t})()</script>
 <style>
 .wa-name-btn{background:none;border:0;padding:0;margin:0;color:inherit;text-align:left;font:inherit;cursor:pointer}
@@ -506,6 +507,7 @@ background:linear-gradient(160deg,color-mix(in srgb,var(--c) 55%,#fff),var(--c))
       <div class="ni" data-p="receipts"><i class="fas fa-receipt"></i><span>Receipts</span></div>
       <div class="ni" data-p="payments"><i class="fas fa-credit-card"></i><span>Payments</span></div>
       <div class="ni" data-p="reports"><i class="fas fa-chart-pie"></i><span>Reports</span></div>
+      <div class="ni" data-p="importbelanja" id="navImport"><i class="fas fa-file-import"></i><span>Impor Belanja (SQL)</span></div>
       <div class="ni" data-p="settings" id="navSettings"><i class="fas fa-cogs"></i><span>Settings</span></div>
       <div class="ni" data-p="changepwd"><i class="fas fa-key"></i><span>Ganti Password</span></div>
       <div class="ni" id="logoutBtn"><i class="fas fa-sign-out-alt"></i><span>Logout</span></div>
@@ -730,7 +732,7 @@ async function api(action, params={}){
   url.searchParams.set('action', action);
   if(SESSION_TOKEN) url.searchParams.set('token', SESSION_TOKEN);
   // Untuk GET ringan pakai URL params; untuk POST/data besar pakai body
-  const isWrite = ['add','update','delete','set','login','logout','send'].some(k=>action.toLowerCase().includes(k));
+  const isWrite = ['add','update','delete','set','login','logout','send','import'].some(k=>action.toLowerCase().includes(k));
   try {
     let res;
     if(isWrite){
@@ -885,11 +887,14 @@ async function doLogin(){
   const isViewer = user.role==='Viewer';
   const isStaff  = user.role==='Staff';
   const isAdmin  = user.role==='Admin';
+  const isManager = user.role==='Manager';
   // Viewer: hide operational menus — only show Dashboard, Sales, Receipts, Logout
   const viewerHide=['inventory','suppliers','customers','purchases','payments','reports','settings'];
   document.querySelectorAll('.ni[data-p]').forEach(n=>{
     if(n.dataset.p==='whatsapp'){
       n.style.display=isAdmin?'':'none';
+    } else if(n.dataset.p==='importbelanja'){
+      n.style.display=(isAdmin||isManager)?'':'none';
     } else if(n.dataset.p==='settings'){
       n.style.display=(isStaff||isViewer)?'none':'';
     } else if(isViewer && viewerHide.includes(n.dataset.p)){
@@ -1032,7 +1037,7 @@ function closeDrawer(){
 // PAGE TITLE for mobile header + trigger enter animation
 const PAGE_TITLES={dashboard:'Dashboard',inventory:'Inventory',suppliers:'Suppliers',customers:'Customers',
   purchases:'Purchases',sales:'Sales',receipts:'Receipts',payments:'Payments',reports:'Reports',
-  settings:'Settings',changepwd:'Ganti Password'};
+  settings:'Settings',changepwd:'Ganti Password',importbelanja:'Impor Belanja'};
 function updateHeaderForPage(p){
   const h=document.getElementById('headerPageTitle');
   if(h) h.textContent=PAGE_TITLES[p]||'KopSUS App';
@@ -1183,7 +1188,7 @@ function goto(p){
   destroyCharts();
   const pages={dashboard:pgDashboard,inventory:pgInventory,suppliers:pgSuppliers,customers:pgCustomers,whatsapp:pgWhatsApp,
     purchases:pgPurchases,sales:pgSales,receipts:pgReceipts,payments:pgPayments,reports:pgReports,settings:pgSettings,
-    changepwd:pgChangePassword};
+    changepwd:pgChangePassword,importbelanja:pgImportBelanja};
   document.getElementById('pageContent').innerHTML='';
   if(pages[p]){
     const result=pages[p]();
@@ -3355,6 +3360,683 @@ async function delUser(uid){
   toast('User dihapus!');renderUsersTable();
 }
 </script>
+<!-- ═══════════════ IMPOR BELANJA (SQL → Google Drive / tab Rincian) ═══════════════ -->
+<style id="ibStyle">
+.ib-drop{display:block;border:2px dashed var(--bc);border-radius:14px;padding:24px 16px;text-align:center;cursor:pointer;color:var(--tl);transition:.2s}
+.ib-drop:hover,.ib-drop.drag{border-color:var(--pr);background:var(--pr2)}
+.ib-drop input{display:none}
+.ib-drop small{display:block;margin-top:4px;opacity:.75;font-size:.78rem}
+.ib-bar{height:6px;background:var(--th);border-radius:6px;overflow:hidden;margin-top:10px}
+.ib-bar>div{height:100%;width:0;background:var(--pr);transition:width .2s}
+.ib-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.ib-chip{background:var(--pr2);border-radius:20px;padding:3px 11px;font-size:.76rem;color:var(--td)}
+.ib-msg{font-size:.8rem;margin-top:8px;color:var(--mut,#8fae9a);line-height:1.5}
+.ib-msg.er{color:#f87171}.ib-msg.ok{color:var(--pr)}.ib-msg.wa{color:var(--sc)}
+.ib-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;align-items:end}
+.ib-g label{font-size:.8rem;color:var(--tl);display:flex;flex-direction:column;gap:5px;min-width:0}
+.ib-chk{display:flex;gap:9px;align-items:flex-start;font-size:.84rem;color:var(--tl);margin:14px 0 4px;line-height:1.45}
+.ib-chk input{margin-top:3px;accent-color:var(--pr)}
+.ib-tw{max-height:420px;overflow:auto;border:1px solid var(--bc);border-radius:8px;margin-top:10px}
+.ib-tw table{min-width:720px}
+.ib-cu{border:1px solid var(--bc);border-radius:8px;margin-top:8px;padding:8px 10px}.ib-cu summary{cursor:pointer;font-size:.84rem}.ib-cu .ib-tw{max-height:260px;margin-top:8px}.ib-cu table{min-width:560px;font-size:.78rem}.ib-cu code,.ib-tw code{background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px}
+.ib-tw thead th{position:sticky;top:0;z-index:1}
+td.ib-n,th.ib-n{text-align:right}
+.ib-step{display:inline-flex;width:22px;height:22px;border-radius:50%;background:var(--pr);color:#0a1f12;font-size:.75rem;font-weight:700;align-items:center;justify-content:center;margin-right:8px}
+</style>
+<script>
+'use strict';
+(function(){
+/*P*/
+const CHUNK=8*1024*1024;
+function unq(v){
+  if(/^NULL$/i.test(v))return null;
+  const q=v[0];
+  if(v.length>=2&&(q==="'"||q==='"')&&v[v.length-1]===q)
+    return v.slice(1,-1).replace(/\\(.)|''/g,(m,c)=>m==="''"?"'":({n:'\n',r:'\r',t:'\t','0':'\0'})[c]??c);
+  return v;
+}
+// baca satu tuple "(a,b,c)"; null jika belum lengkap di buffer
+function readTuple(s,st){
+  let q=null,b='',v=[],n=s.length;
+  for(let i=st+1;i<n;i++){
+    const c=s[i];
+    if(q){
+      if(c==='\\'){if(i+1>=n)return null;b+=c+s[++i];continue}
+      if(c===q){if(i+1>=n)return null;if(s[i+1]===q){b+=c+c;i++;continue}q=null}
+      b+=c;
+    }else if(c==="'"||c==='"'){q=c;b+=c}
+    else if(c===','){v.push(unq(b.trim()));b=''}
+    else if(c===')'){v.push(unq(b.trim()));return{v,end:i+1}}
+    else b+=c;
+  }
+  return null;
+}
+function matchParen(s,st){
+  let d=0,q=null;
+  for(let i=st;i<s.length;i++){
+    const c=s[i];
+    if(q){if(c==='\\')i++;else if(c===q)q=null}
+    else if(c==="'"||c==='"'||c==='`')q=c;
+    else if(c==='(')d++;
+    else if(c===')'&&--d===0)return i+1;
+  }
+  return -1;
+}
+function splitTop(s){
+  let o=[],b='',d=0,q=null;
+  for(let i=0;i<s.length;i++){
+    const c=s[i];
+    if(q){b+=c;if(c==='\\'){b+=s[++i]||''}else if(c===q)q=null}
+    else if(c==="'"||c==='"'||c==='`'){q=c;b+=c}
+    else if(c==='('){d++;b+=c}else if(c===')'){d--;b+=c}
+    else if(c===','&&d===0){o.push(b);b=''}else b+=c;
+  }
+  o.push(b);return o;
+}
+const Q='[`"\']',NM=`((?:${Q}?[\\w$-]+${Q}?\\.)?${Q}?[\\w$-]+${Q}?)`;
+const KW=/INSERT\s+(?:IGNORE\s+)?INTO|CREATE\s+TABLE/gi;
+const HI=new RegExp(`INSERT\\s+(?:IGNORE\\s+)?INTO\\s+${NM}\\s*(?:\\(([^)]*)\\))?\\s*VALUES\\s*`,'iy');
+const HC=new RegExp(`CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?${NM}\\s*\\(`,'iy');
+// Membaca .sql per potongan; sisa statement yang terpotong dibawa ke potongan berikutnya
+async function scanSQL(file,prog,chunk=CHUNK){
+  const tabs=new Map(),dec=new TextDecoder();
+  const get=n=>{n=n.replace(/[`"']/g,'').split('.').pop();if(!tabs.has(n))tabs.set(n,{cols:[],rows:[]});return tabs.get(n)};
+  let buf='',off=0,cur=null,eof=false;
+  while(!eof){
+    const end=Math.min(off+chunk,file.size);
+    buf+=dec.decode(await file.slice(off,end).arrayBuffer(),{stream:true});
+    off=end;eof=off>=file.size;
+    if(eof)buf+=dec.decode();
+    let p=0;
+    for(;;){
+      if(cur){
+        while(p<buf.length&&/[\s,]/.test(buf[p]))p++;
+        if(p>=buf.length)break;
+        const c=buf[p];
+        if(c===';'){cur=null;p++;continue}
+        if(c!=='('){cur=null;continue}
+        const r=readTuple(buf,p);
+        if(!r){if(eof)p=buf.length;break}
+        cur.rows.push(r.v);p=r.end;continue;
+      }
+      KW.lastIndex=p;const k=KW.exec(buf);
+      if(!k){p=Math.max(p,buf.length-40);break}
+      const ins=/^INSERT/i.test(k[0]),re=ins?HI:HC;
+      re.lastIndex=k.index;const m=re.exec(buf);
+      if(!m){if(eof){p=k.index+6;continue}p=k.index;break}
+      if(ins){
+        const t=get(m[1]);
+        if(m[2]&&!t.rows.length)t.cols=m[2].split(',').map(x=>x.replace(/[`"'\s]/g,''));
+        cur=t;p=re.lastIndex;
+      }else{
+        const o=m.index+m[0].length-1,e=matchParen(buf,o);
+        if(e<0){if(eof){p=k.index+6;continue}p=k.index;break}
+        const cols=[];
+        for(const d of splitTop(buf.slice(o+1,e-1))){
+          const z=d.trim().match(/^[`"']?([\w$-]+)[`"']?\s+\w/);
+          if(z&&!/^(PRIMARY|UNIQUE|KEY|CONSTRAINT|INDEX|FULLTEXT|FOREIGN|CHECK)$/i.test(z[1]))cols.push(z[1]);
+        }
+        const t=get(m[1]);if(cols.length)t.cols=cols;
+        p=e;
+      }
+    }
+    buf=buf.slice(p);
+    if(prog)prog(off/file.size);
+    await new Promise(r=>setTimeout(r));
+  }
+  return tabs;
+}
+/*E*/
+
+// ───────────────────────── util ─────────────────────────
+const $i=id=>document.getElementById(id);
+const sz=n=>{const u=['B','KB','MB','GB'];let i=0;while(n>=1024&&i<3){n/=1024;i++}return n.toFixed(i?1:0)+' '+u[i]};
+const pad=n=>String(n).padStart(2,'0');
+const dim=(y,m)=>new Date(y,m,0).getDate();
+const mk=(y,m,d)=>`${y}-${pad(m)}-${pad(d)}`;
+const BLN=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+const idDate=s=>s&&/^\d{4}-\d{2}-\d{2}$/.test(s)?`${+s.slice(8)} ${BLN[+s.slice(5,7)-1]} ${s.slice(0,4)}`:'–';
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function msg(id,t,cls){const e=$i(id);if(!e)return;e.textContent=t;e.className='ib-msg'+(cls?' '+cls:'')}
+
+// tanggal → "YYYY-MM-DD" (null bila kosong / 1899-12-30)
+function ymd(v){
+  if(v==null||v==='')return null;
+  let d;
+  if(v instanceof Date)d=new Date(v.getTime()+43200000);
+  else if(typeof v==='number')d=new Date(Math.round((v-25569)*86400000)+43200000);
+  else{
+    const s=String(v).trim();
+    let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(m)return m[1]<'1901'?null:`${m[1]}-${m[2]}-${m[3]}`;
+    m=s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+    return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:null;
+  }
+  const y=d.getFullYear();
+  return y<1901?null:`${y}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+const cob=v=>(typeof v==='string'&&/^[1-9]\d{0,14}$/.test(v))?+v:v;
+const num=v=>(v==null||v==='')?null:(isFinite(+v)?+v:v);
+const idx=t=>{const m={};t.cols.forEach((c,i)=>{const k=c.toLowerCase();if(!(k in m))m[k]=i});return m};
+const gv=(r,x,c)=>{const i=x[c];return i==null?null:r[i]};
+
+// ───────────────────────── periode ─────────────────────────
+// preset: 'month' = tgl 1 s/d akhir bulan · 'cutoff' = tgl [sd] bulan sebelumnya s/d tgl [ed] bulan terpilih
+function periodDates(preset,month,sd,ed){
+  if(!/^\d{4}-\d{2}$/.test(month||''))return null;
+  const y=+month.slice(0,4),m=+month.slice(5,7);
+  if(preset==='month')return[mk(y,m,1),mk(y,m,dim(y,m))];
+  sd=Math.max(1,Math.min(31,+sd||1));ed=Math.max(1,Math.min(31,+ed||1));
+  let py=y,pm=m;
+  if(sd>ed){pm=m-1;if(pm<1){pm=12;py--}}
+  return[mk(py,pm,Math.min(sd,dim(py,pm))),mk(y,m,Math.min(ed,dim(y,m)))];
+}
+// bulan (YYYY-MM) yang memuat tanggal `d` menurut preset
+function monthForDate(d,preset,sd,ed){
+  let y=+d.slice(0,4),m=+d.slice(5,7);const day=+d.slice(8,10);
+  if(preset==='cutoff'&&+sd>+ed&&day>=+sd){m++;if(m>12){m=1;y++}}
+  return`${y}-${pad(m)}`;
+}
+
+// ───────────────────────── state ─────────────────────────
+const RCOLS=['CODE','Code Pelanggan','NO.','RESI','KODE PELANGGAN','COB','NAMA PELANGGAN','NAMA BARANG','ALAMAT PELANGGAN','SATUAN','QTY','HARGA','TOTAL','TANGGAL'];
+const BATCH=1500,SHOW=200;
+const S={tables:new Map(),files:[],trx:[],stat:{},excluded:new Set(),q:'',busy:false,
+  ui:{preset:'cutoff',month:'',sd:29,ed:28,from:'',to:'',s1:'',s2:'',mode:'replace',upd:true}};
+
+// ───────────────────────── baca file ─────────────────────────
+async function loadXlsx(file){
+  if(typeof XLSX==='undefined')throw new Error('Library Excel belum termuat (cek koneksi internet).');
+  const wb=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true});
+  const m=new Map();
+  for(const n of wb.SheetNames){
+    const a=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:null,raw:true});
+    if(a.length>1)m.set(wb.SheetNames.length>1?`${file.name} › ${n}`:file.name,{cols:a[0].map(x=>String(x??'').trim()),rows:a.slice(1)});
+  }
+  return m;
+}
+async function addFiles(files){
+  const fi=$i('ibFi');if(fi)fi.disabled=true;
+  for(const f of files){
+    try{
+      msg('ibM0',`Membaca ${f.name} (${sz(f.size)})…`);
+      const ext=f.name.split('.').pop().toLowerCase();
+      const m=(ext==='sql'||ext==='txt')?await scanSQL(f,p=>{const b=$i('ibBar');if(b)b.style.width=(p*100).toFixed(1)+'%'}):await loadXlsx(f);
+      let c=0;
+      for(const [n,t] of m){if(!t.rows.length&&!t.cols.length)continue;let k=n;if(S.tables.has(k))k=`${n} (${f.name})`;S.tables.set(k,t);c++;ingestMembers(t)}
+      S.files.push(`${f.name} · ${sz(f.size)} · ${c} tabel`);
+      if(!c)msg('ibM0',`${f.name}: tidak ada tabel/INSERT yang terbaca.`,'er');else msg('ibM0',`Selesai membaca ${f.name}.`,'ok');
+    }catch(x){msg('ibM0',`Error ${f.name}: ${x.message}`,'er')}
+  }
+  const b=$i('ibBar');if(b)b.style.width='0';
+  if(fi){fi.disabled=false;fi.value=''}
+  renderFiles();fillSel(true);
+}
+function renderFiles(){
+  const e=$i('ibFiles');if(!e)return;
+  e.innerHTML=S.files.map(x=>`<span class="ib-chip">${esc(x)}</span>`).join('');
+  if(S.files.length&&!$i('ibM0').textContent)msg('ibM0','Data dimuat dari sesi sebelumnya.','ok');
+}
+
+// ───────────────────────── pilih tabel ─────────────────────────
+const lc=t=>t.cols.map(c=>c.toLowerCase());
+function fillSel(autoPick){
+  const ns=[...S.tables.keys()];
+  const s1=$i('ibS1'),s2=$i('ibS2');if(!s1||!s2)return;
+  const opt='<option value="">— pilih tabel —</option>'+ns.map(n=>`<option value="${esc(n)}">${esc(n)} — ${fmtNum(S.tables.get(n).rows.length)} baris</option>`).join('');
+  s1.innerHTML=s2.innerHTML=opt;
+  s1.disabled=s2.disabled=!ns.length;
+  if(autoPick||!S.tables.has(S.ui.s1)||!S.tables.has(S.ui.s2)){
+    const cand=f=>ns.filter(n=>f(lc(S.tables.get(n))));
+    const pick=(c,re)=>c.find(n=>re.test(n.toLowerCase()))||c[0]||'';
+    const ci=cand(c=>['kode','nama_barang','qty'].every(x=>c.includes(x)));
+    const it=pick(ci,/item|detail/);
+    const cp=cand(c=>['kode','tanggal','jumlah'].every(x=>c.includes(x))).filter(n=>n!==it);
+    S.ui.s1=pick(cp,/penjualan|jual/);S.ui.s2=it;
+  }
+  s1.value=S.ui.s1;s2.value=S.ui.s2;
+  if(autoPick)autoPeriod();
+  build();
+}
+
+// Setelah data dimuat: pilih periode yang memuat tanggal terbaru di data
+function autoPeriod(){
+  const P=S.tables.get(S.ui.s1);msg('ibPm','');
+  if(!P)return;
+  const px=idx(P);if(px.tanggal==null)return;
+  let lo=null,hi=null,empty=0;
+  for(const r of P.rows){const d=ymd(r[px.tanggal]);if(!d){empty++;continue}if(!lo||d<lo)lo=d;if(!hi||d>hi)hi=d}
+  S.dataRange={lo,hi,empty};
+  if(hi){
+    S.ui.month=monthForDate(hi,S.ui.preset==='range'?'month':S.ui.preset,S.ui.sd,S.ui.ed);
+    if(S.ui.preset==='range')S.ui.preset='cutoff';
+    applyPreset(true);
+  }
+  S.excluded.clear();
+}
+function applyPreset(silent){
+  if(S.ui.preset!=='range'){
+    const pd=periodDates(S.ui.preset,S.ui.month,S.ui.sd,S.ui.ed);
+    if(pd){S.ui.from=pd[0];S.ui.to=pd[1]}
+  }
+  syncPeriodInputs();
+  if(!silent)build();
+}
+function syncPeriodInputs(){
+  const g=(id,v)=>{const e=$i(id);if(e)e.value=v};
+  g('ibPreset',S.ui.preset);g('ibMonth',S.ui.month);g('ibSd',S.ui.sd);g('ibEd',S.ui.ed);g('ibFrom',S.ui.from);g('ibTo',S.ui.to);
+  const show=(id,on)=>{const e=$i(id);if(e)e.style.display=on?'':'none'};
+  show('ibLbMonth',S.ui.preset!=='range');
+  show('ibLbSd',S.ui.preset==='cutoff');show('ibLbEd',S.ui.preset==='cutoff');
+  let t='';
+  if(S.ui.from||S.ui.to)t=`Periode dipakai: ${idDate(S.ui.from)} s/d ${idDate(S.ui.to)}.`;else t='Semua tanggal dipakai (tanpa filter).';
+  const r=S.dataRange;
+  if(r&&r.lo)t+=` Rentang data di tabel penjualan: ${idDate(r.lo)} s/d ${idDate(r.hi)}.`+(r.empty?` ${fmtNum(r.empty)} transaksi bertanggal kosong hanya ikut bila filter dikosongkan ("Semua tanggal").`:'');
+  msg('ibPm',t);
+}
+
+// ───────────────────────── hitung transaksi ─────────────────────────
+function computeTrx(){
+  S.trx=[];S.stat={unm:0,dup:0,err:null};
+  const P=S.tables.get(S.ui.s1),I=S.tables.get(S.ui.s2);
+  if(!P||!I)return;
+  const px=idx(P),ix=idx(I);
+  const miss=[...['kode','tanggal'].filter(c=>!(c in px)).map(c=>'penjualan.'+c),...['kode','nama_barang'].filter(c=>!(c in ix)).map(c=>'item.'+c)];
+  if(miss.length){S.stat.err=`Kolom tidak ditemukan: ${miss.join(', ')}. Periksa pilihan tabel.`;return}
+  const a=S.ui.from,b=S.ui.to,filt=a||b;
+  const byKode=new Map();let rawSel=0;
+  for(const r of P.rows){
+    if(filt){const d=ymd(gv(r,px,'tanggal'));if(!d||(a&&d<a)||(b&&d>b))continue}
+    rawSel++;byKode.set(String(gv(r,px,'kode')).trim(),r);
+  }
+  const itemsBy=new Map();
+  for(const it of I.rows){
+    const k=String(gv(it,ix,'kode')).trim();
+    if(!byKode.has(k)){if(!filt)S.stat.unm++;continue}
+    if(!itemsBy.has(k))itemsBy.set(k,[]);
+    itemsBy.get(k).push(it);
+  }
+  const tot=it=>{const s=gv(it,ix,'subtotal');return(s!=null&&s!=='')?+s:(+gv(it,ix,'qty')||0)*(+gv(it,ix,'harga')||0)};
+  for(const [k,p] of byKode){
+    const items=(itemsBy.get(k)||[]).map(it=>({cob:cob(gv(it,ix,'kode_barang')),nama:gv(it,ix,'nama_barang'),satuan:gv(it,ix,'satuan'),qty:num(gv(it,ix,'qty')),harga:num(gv(it,ix,'harga')),total:tot(it)}));
+    const code=String(gv(p,px,'pelanggan')??gv(p,px,'nama_pelanggan')??'').trim();
+    S.trx.push({resi:k,tgl:ymd(gv(p,px,'tanggal'))||'',code,nama:gv(p,px,'nama_pelanggan')??code,alamat:gv(p,px,'alamat_pelanggan')??'',
+      items,total:items.reduce((x,i)=>x+(+i.total||0),0),pj:+gv(p,px,'jumlah')||0});
+  }
+  S.stat.dup=rawSel-byKode.size;
+  S.trx.sort((x,y)=>x.tgl<y.tgl?-1:x.tgl>y.tgl?1:(x.resi<y.resi?-1:x.resi>y.resi?1:0));
+  // buang pilihan lama yang sudah tidak ada di periode ini
+  const have=new Set(S.trx.map(t=>t.resi));
+  for(const r of [...S.excluded])if(!have.has(r))S.excluded.delete(r);
+}
+const selected=()=>S.trx.filter(t=>!S.excluded.has(t.resi));
+// ── Pemetaan NIK → Code Pelanggan (kode acak 8 karakter, sama seperti Sheet1/DB) ──
+const nikKey=v=>String(v==null?'':v).trim().toUpperCase().replace(/\.0+$/,'').replace(/\s+/g,' ');
+const keyOf=t=>nikKey(t.code)||nikKey(t.nama);
+const KSMEM={map:new Map(),used:new Set(),srv:false};           // anggota yang sudah ada (Sheet1 / file DB)
+const KSNEW_KEY='ks_newmem';
+let KSNEW={};try{KSNEW=JSON.parse(localStorage.getItem(KSNEW_KEY)||'{}')}catch(e){}   // kode acak baru yang dibuat di perangkat ini
+const saveKsNew=()=>{try{localStorage.setItem(KSNEW_KEY,JSON.stringify(KSNEW))}catch(e){}};
+Object.values(KSNEW).forEach(x=>x&&x.code&&KSMEM.used.add(String(x.code).toUpperCase()));
+function addMember(nik,code,nama,jab){code=String(code||'').trim();if(!code)return;KSMEM.used.add(code.toUpperCase());const k=nikKey(nik);if(k)KSMEM.map.set(k,{code,nama:nama||'',jabatan:jab||''})}
+function randCode(){const A='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';let c;
+  do{const b=new Uint8Array(8);crypto.getRandomValues(b);c=[...b].map(x=>A[x%A.length]).join('')}while(KSMEM.used.has(c.toUpperCase()));
+  KSMEM.used.add(c.toUpperCase());return c}
+function ingestMembers(t){            // tabel anggota (sheet DB / Sheet1): kolom "Code Pelanggan" + "NIK", tanpa kolom RESI
+  const c=lc(t),iC=c.indexOf('code pelanggan'),iN=c.indexOf('nik');
+  if(iC<0||iN<0||c.includes('resi'))return 0;
+  const iNm=c.indexOf('nama'),iJ=c.indexOf('jabatan');let n=0;
+  for(const r of t.rows){if(!String(r[iC]??'').trim())continue;addMember(r[iN],r[iC],iNm>=0?r[iNm]:'',iJ>=0?r[iJ]:'');n++}
+  return n}
+async function loadMembers(){
+  if(!USE_BACKEND||!SESSION_TOKEN)return;
+  const r=await api('getMemberMap',{});
+  if(r&&r.ok&&Array.isArray(r.members)){r.members.forEach(m=>addMember(m.nik,m.code,m.nama,m.jabatan));KSMEM.srv=true;renderKpi()}
+}
+// isi t.kode (Code Pelanggan) tiap transaksi: pakai kode anggota; bila belum ada → kode acak baru (tetap sama untuk NIK yang sama)
+function assignCodes(sel){
+  for(const t of sel){
+    const k=keyOf(t);if(!k){t.kode='';t.baru=false;continue}
+    const m=KSMEM.map.get(k);if(m){t.kode=m.code;t.baru=false;continue}
+    let n=KSNEW[k];if(!n){n=KSNEW[k]={code:randCode(),nik:t.code||t.nama,nama:t.nama,jabatan:t.alamat};saveKsNew()}
+    t.kode=n.code;t.baru=true;
+  }
+}
+// daftarkan pelanggan baru ke Sheet1 (server yang menentukan kode final)
+async function resolveMembersServer(sel){
+  assignCodes(sel);
+  const seen=new Set(),list=[];
+  for(const t of sel){const k=keyOf(t);if(!k||seen.has(k))continue;seen.add(k);if(!KSMEM.srv||!KSMEM.map.has(k))list.push({nik:t.code||t.nama,nama:t.nama,jabatan:t.alamat,code:t.kode})}
+  if(!list.length)return{ok:true,added:0};
+  const r=await api('importResolveMembers',{members:list});
+  if(!r||!r.ok)return{ok:false,error:(r&&r.error)||'Gagal mendaftarkan pelanggan ke Sheet1 — pastikan kopsus-backend.gs terbaru sudah di-deploy.'};
+  for(const [k,c] of Object.entries(r.codes||{})){addMember(k,c);delete KSNEW[k]}
+  saveKsNew();assignCodes(sel);
+  return{ok:true,added:r.added||0};
+}
+// baris siap kirim: dikelompokkan per pelanggan (NIK), urut tanggal di dalam pelanggan
+// kolom: CODE=NIK · Code Pelanggan=kode acak (sama dgn Sheet1) · KODE PELANGGAN=NIK
+function exportRows(sel){
+  assignCodes(sel);
+  const by=new Map();
+  for(const t of sel){const k=keyOf(t);if(!by.has(k))by.set(k,[]);by.get(k).push(t)}
+  const rows=[];let no=0;
+  for(const list of by.values()){
+    no++;const nik=list[0].code||list[0].nama,kode=list[0].kode;
+    for(const t of list)for(const it of t.items)
+      rows.push([nik,kode,no,t.resi,nik,it.cob??'',t.nama??'',it.nama??'',t.alamat??'',it.satuan??'',it.qty??'',it.harga??'',it.total??'',t.tgl||'']);
+  }
+  return rows;
+}
+const itemsTable=its=>`<div class="ib-tw"><table><thead><tr><th>Barang</th><th>Sat</th><th class="ib-n">Qty</th><th class="ib-n">Harga</th><th class="ib-n">Total</th></tr></thead><tbody>${its.map(i=>`<tr><td>${esc(i.nama)}</td><td>${esc(i.satuan||'')}</td><td class="ib-n">${fmtNum(i.qty)}</td><td class="ib-n">${fmtRp(i.harga)}</td><td class="ib-n">${fmtRp(i.total)}</td></tr>`).join('')}</tbody></table></div>`;
+// rincian per pelanggan dari transaksi terpilih (sebelum dikirim)
+function renderCust(){
+  const e=$i('ibCust');if(!e||S.busy)return;
+  const sel=selected();assignCodes(sel);
+  const by=new Map();for(const t of sel){const k=keyOf(t);if(!by.has(k))by.set(k,[]);by.get(k).push(t)}
+  const q=(S.cq||'').trim().toLowerCase();
+  const arr=[...by.values()].filter(l=>!q||`${l[0].nama} ${l[0].code} ${l[0].kode}`.toLowerCase().includes(q)).sort((x,y)=>String(x[0].nama).localeCompare(String(y[0].nama)));
+  e.innerHTML=arr.slice(0,30).map(l=>{const f=l[0],tot=l.reduce((x,t)=>x+t.total,0);
+    return`<details class="ib-cu"><summary><b>${esc(f.nama)}</b> · NIK ${esc(f.code||'–')} · Kode <code>${esc(f.kode)}</code>${f.baru?' <span class="badge by">kode baru</span>':''} · ${l.length} trx · ${fmtRp(tot)}</summary>`+
+      l.map(t=>`<div style="margin-top:8px;font-size:.8rem"><b>${esc(t.resi)}</b> · ${t.tgl?idDate(t.tgl):'–'} · ${fmtRp(t.total)}</div>${itemsTable(t.items)}`).join('')+`</details>`}).join('')||'<div class="ib-msg">Belum ada pelanggan pada transaksi terpilih.</div>';
+  msg('ibCm',arr.length>30?`Menampilkan 30 dari ${fmtNum(arr.length)} pelanggan — gunakan kotak cari.`:`${fmtNum(arr.length)} pelanggan.`);
+}
+// baca ringkasan & detail belanja per pelanggan langsung dari tab Rincian di Google Drive
+const KSDRV={list:[]};
+async function drLoad(){
+  if(!USE_BACKEND||!SESSION_TOKEN){msg('ibDm','Belum terhubung ke backend.','wa');return}
+  msg('ibDm','Memuat dari Google Drive…');
+  const r=await api('getRincianSummary',{});
+  if(!r||!r.ok){msg('ibDm',(r&&r.error)||'Gagal memuat — pastikan kopsus-backend.gs terbaru sudah di-deploy.','er');return}
+  KSDRV.list=r.data||[];msg('ibDm',`${fmtNum(KSDRV.list.length)} pelanggan punya rincian belanja di tab Rincian.`,'ok');drRender();
+}
+function drRender(){
+  const q=($i('ibDq').value||'').trim().toLowerCase();
+  const l=KSDRV.list.filter(x=>!q||`${x.nama} ${x.nik} ${x.code}`.toLowerCase().includes(q)).slice(0,100);
+  $i('ibDtb').innerHTML=l.map(x=>`<tr><td>${esc(x.nama)}</td><td>${esc(x.nik)}</td><td><code>${esc(x.code)}</code></td><td class="ib-n">${x.trx}</td><td class="ib-n">${fmtRp(x.total)}</td><td><button class="btn btn-ol btn-sm" data-c="${esc(x.code)}" type="button">Detail</button></td></tr>`).join('')||'<tr><td colspan="6" style="text-align:center;padding:16px;color:var(--mut,#8fae9a)">Klik "Muat dari Drive".</td></tr>';
+}
+async function drDetail(code){
+  const box=$i('ibDd');box.innerHTML='<div class="ib-msg">Memuat…</div>';
+  const r=await api('getRincianCustomer',{code});
+  if(!r||!r.ok){box.innerHTML=`<div class="ib-msg er">${esc((r&&r.error)||'Gagal memuat detail.')}</div>`;return}
+  box.innerHTML=(r.data||[]).map(t=>`<details class="ib-cu" open><summary><b>${esc(t.resi)}</b> · ${esc(t.trxDate||'–')} · ${fmtRp(t.amountReceived)}</summary>${itemsTable(t.items.map(i=>({nama:i.itemName,satuan:i.satuan,qty:i.qty,harga:i.harga,total:i.total})))}</details>`).join('')||'<div class="ib-msg">Tidak ada transaksi.</div>';
+}
+async function drRepair(){
+  if(!USE_BACKEND||!SESSION_TOKEN){msg('ibDm','Belum terhubung ke backend.','wa');return}
+  if(!confirm('Perbaiki kolom "Code Pelanggan" di tab Rincian agar sama dengan Sheet1 (berdasarkan NIK)?\nPelanggan yang belum ada di Sheet1 akan ditambahkan dengan kode acak.\nIsi lama dicadangkan ke tab "Rincian_backup".'))return;
+  msg('ibDm','Memperbaiki tab Rincian…');
+  const r=await api('importRepairRincian',{});
+  if(!r||!r.ok){msg('ibDm',(r&&r.error)||'Gagal — pastikan kopsus-backend.gs terbaru sudah di-deploy.','er');return}
+  msg('ibDm',`✓ ${fmtNum(r.fixed)} baris diperbaiki; ${fmtNum(r.added)} pelanggan baru ditambahkan ke Sheet1 (kode acak).`,'ok');
+  invalidateCache('viewerData');loadMembers();drLoad();
+}
+
+// ───────────────────────── render ─────────────────────────
+function build(){
+  computeTrx();
+  const n1=S.ui.s1,n2=S.ui.s2;
+  if(S.stat.err)msg('ibM1',S.stat.err,'er');
+  else if(n1&&n2)msg('ibM1',`Penjualan: ${fmtNum(S.tables.get(n1).rows.length)} baris · Item: ${fmtNum(S.tables.get(n2).rows.length)} baris.`);
+  else msg('ibM1',S.tables.size?'Pilih tabel penjualan dan tabel item penjualan.':'');
+  renderTrx();
+}
+function renderKpi(){
+  const sel=selected();
+  const items=sel.reduce((x,t)=>x+t.items.length,0);
+  const cust=new Set(sel.map(t=>t.code)).size;
+  const total=sel.reduce((x,t)=>x+t.total,0);
+  const k=(l,v)=>`<div class="kpi"><h3>${l}</h3><h2>${v}</h2></div>`;
+  const e=$i('ibKpi');
+  if(e)e.innerHTML=k('Transaksi dipilih',`${fmtNum(sel.length)} <small style="font-weight:400;font-size:.7em">/ ${fmtNum(S.trx.length)}</small>`)+k('Baris item',fmtNum(items))+k('Pelanggan',fmtNum(cust))+k('Total belanja',fmtRp(total));
+  const send=$i('ibSend'),xls=$i('ibXls');
+  if(send)send.disabled=S.busy||!sel.length;
+  if(xls)xls.disabled=S.busy||!sel.length;
+  const noCode=sel.filter(t=>!t.code).length,noItem=sel.filter(t=>!t.items.length).length;
+  const warn=[];
+  if(noCode)warn.push(`${fmtNum(noCode)} transaksi terpilih tanpa kode pelanggan (tidak akan cocok dengan anggota).`);
+  if(noItem)warn.push(`${fmtNum(noItem)} transaksi terpilih tidak punya item (tidak ikut terkirim).`);
+  if(S.stat.dup>0)warn.push(`${fmtNum(S.stat.dup)} kode transaksi ganda di tabel penjualan (hanya satu dipakai).`);
+  if(S.stat.unm)warn.push(`${fmtNum(S.stat.unm)} baris item tidak punya pasangan di tabel penjualan.`);
+  const nw=new Set(sel.filter(t=>keyOf(t)&&!KSMEM.map.has(keyOf(t))).map(keyOf)).size;
+  if(!KSMEM.map.size)warn.push('Daftar anggota (Sheet1) belum dimuat — muat dari Drive (login Admin/Manager) atau unggah DB_Kopsus.xlsx di langkah 1, agar kode pelanggan sama dengan Sheet1.');
+  else if(nw)warn.push(`${fmtNum(nw)} pelanggan belum ada di Sheet1 (tanpa simpanan pokok/wajib) — akan dibuatkan Code Pelanggan acak dan ditambahkan ke Sheet1.`);
+  msg('ibWarn',warn.join(' '),warn.length?'wa':'');
+  renderCust();
+}
+function renderTrx(){
+  const tb=$i('ibTb');if(!tb)return;
+  const q=S.q.trim().toLowerCase();
+  const list=q?S.trx.filter(t=>`${t.resi} ${t.nama} ${t.code}`.toLowerCase().includes(q)):S.trx;
+  tb.innerHTML=list.slice(0,SHOW).map(t=>{
+    const diff=!t.items.length?'<span class="badge by">Tanpa item</span>':(Math.abs(t.pj-t.total)>0.5?`<span class="badge br" title="Jumlah di tabel penjualan ${fmtRp(t.pj)}">Selisih ${fmtRp(t.pj-t.total)}</span>`:'');
+    return`<tr><td><input type="checkbox" data-r="${esc(t.resi)}"${S.excluded.has(t.resi)?'':' checked'}></td><td>${esc(t.resi)}</td><td>${t.tgl?idDate(t.tgl):'–'}</td><td>${esc(t.nama)}</td><td class="ib-n">${t.items.length}</td><td class="ib-n">${fmtRp(t.total)}</td><td>${diff}</td></tr>`;
+  }).join('')||`<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--mut,#8fae9a)">${S.tables.size?'Tidak ada transaksi pada periode ini.':'Muat file SQL / Excel terlebih dahulu.'}</td></tr>`;
+  msg('ibTm',list.length>SHOW?`Menampilkan ${SHOW} dari ${fmtNum(list.length)} transaksi${q?' (hasil pencarian)':''}. Tombol "Pilih semua / Kosongkan" berlaku untuk semua ${fmtNum(list.length)} transaksi tersebut.`:(S.trx.length?`${fmtNum(list.length)} transaksi.`:''));
+  renderKpi();
+}
+
+// ───────────────────────── kirim ke Google Drive ─────────────────────────
+async function loadInfo(){
+  const e=$i('ibInfo');if(!e)return;
+  loadMembers();
+  if(!USE_BACKEND||!SESSION_TOKEN){msg('ibInfo','Mode demo / belum terhubung ke backend — pengiriman ke Google Drive tidak tersedia, tetapi Anda tetap bisa mengunduh Excel.','wa');return}
+  const r=await api('getRincianInfo',{});
+  if(!r||!r.ok){msg('ibInfo',r&&r.error?r.error:'Gagal membaca info tab Rincian. Pastikan backend (kopsus-backend.gs) sudah diperbarui & di-deploy ulang.','wa');return}
+  let t=r.exists?`Tab Rincian saat ini: ${fmtNum(r.rows)} baris.`:'Tab "Rincian" belum ada di spreadsheet Simpanan Viewer.';
+  if(r.last){
+    const d=new Date(r.last.at),m=r.last.meta||{};
+    t+=` Impor terakhir: ${d.toLocaleString('id-ID')} oleh ${r.last.by||'-'}`+(m.from||m.to?` — periode ${idDate(m.from)} s/d ${idDate(m.to)}`:'')+(m.trx?` (${fmtNum(m.trx)} transaksi)`:'')+'.';
+  }
+  msg('ibInfo',t);
+}
+async function sendBatch(payload){
+  for(let k=0;k<3;k++){
+    const r=await api('importRincianBatch',payload);
+    if(r&&r.ok!==undefined)return r;       // jawaban server (ok / error) — tidak diulang
+    await sleep(1500*(k+1));                // jaringan putus — ulangi (aman: batch idempoten)
+  }
+  return null;
+}
+async function syncToDrive(){
+  if(S.busy)return;
+  if(!USE_BACKEND||!SESSION_TOKEN){toast('Belum terhubung ke backend.',true);return}
+  const sel=selected();if(!sel.length){toast('Tidak ada transaksi terpilih.',true);return}
+  let rows=exportRows(sel);if(!rows.length){toast('Transaksi terpilih tidak punya item.',true);return}
+  const mode=$i('ibMode').value,upd=$i('ibUpd').checked;
+  S.ui.mode=mode;S.ui.upd=upd;
+  const cust=new Set(sel.map(t=>t.code)).size;
+  const per=(S.ui.from||S.ui.to)?`${idDate(S.ui.from)} s/d ${idDate(S.ui.to)}`:'semua tanggal';
+  const ask=`Kirim ${fmtNum(sel.length)} transaksi (${fmtNum(rows.length)} baris item, ${fmtNum(cust)} pelanggan)\nperiode ${per} ke tab "Rincian" di Google Drive?\n\n`+
+    (mode==='replace'?'Mode: GANTI — isi tab Rincian diganti dengan transaksi terpilih ini.':'Mode: GABUNG — RESI yang sama ditimpa, data lain dipertahankan.')+
+    '\nIsi lama dicadangkan otomatis ke tab "Rincian_backup".'+(upd?'\n"Belanja Bulan ini" di Sheet1 ikut diperbarui.':'');
+  if(!confirm(ask))return;
+  S.busy=true;renderKpi();
+  msg('ibSm','Mencocokkan NIK dengan Code Pelanggan di Sheet1…');
+  const rs=await resolveMembersServer(sel);
+  if(!rs.ok){S.busy=false;renderKpi();msg('ibSm',rs.error,'er');return}
+  rows=exportRows(sel);
+  const bar=$i('ibBar2'),total=Math.ceil(rows.length/BATCH),jobId=Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+  const resiList=mode==='merge'?[...new Set(sel.map(t=>t.resi))]:undefined;
+  const meta={from:S.ui.from,to:S.ui.to,trx:sel.length,rows:rows.length,customers:cust};
+  let last=null,ok=true;
+  for(let i=0;i<total;i++){
+    msg('ibSm',`Mengirim batch ${i+1} dari ${total}… (${fmtNum(Math.min((i+1)*BATCH,rows.length))}/${fmtNum(rows.length)} baris)`);
+    const r=await sendBatch({cols:RCOLS,rows:rows.slice(i*BATCH,(i+1)*BATCH),jobId,batchIndex:i,totalBatches:total,mode,updateBelanja:upd,meta,resiList:i===0?resiList:undefined});
+    if(!r||r.ok===false){
+      ok=false;
+      msg('ibSm',`Gagal pada batch ${i+1}/${total}: ${r&&r.error?r.error:'tidak ada respons dari backend'}. `+(i>0||mode==='replace'?'Data lama ada di tab "Rincian_backup" — salin kembali bila perlu, lalu coba kirim ulang.':'Coba kirim ulang.'),'er');
+      break;
+    }
+    last=r;if(bar)bar.style.width=((i+1)/total*100).toFixed(0)+'%';
+  }
+  S.busy=false;renderKpi();
+  if(ok){
+    invalidateCache('viewerData');
+    let t=`✓ Selesai: ${fmtNum(rows.length)} baris dari ${fmtNum(sel.length)} transaksi tersimpan ke tab Rincian`+(last&&last.totalRows!=null?` (isi tab sekarang ${fmtNum(last.totalRows)} baris)`:'')+'.';
+    if(last&&last.belanjaUpdated!=null)t+=` "Belanja Bulan ini": ${fmtNum(last.belanjaUpdated)} anggota diperbarui`+(last.belanjaSkipped?`, ${fmtNum(last.belanjaSkipped)} dilewati karena berisi rumus`:'')+'.';
+    if(last&&last.belanjaNote)t+=' '+last.belanjaNote;
+    msg('ibSm',t,'ok');toast('Data belanja tersimpan ke Google Drive');
+    loadInfo();
+  }
+}
+function downloadXlsx(){
+  const sel=selected(),rows=exportRows(sel);
+  if(!rows.length){toast('Tidak ada data untuk diunduh.',true);return}
+  if(typeof XLSX==='undefined'){toast('Library Excel belum termuat.',true);return}
+  const ws=XLSX.utils.aoa_to_sheet([RCOLS,...rows]);
+  ws['!cols']=[14,14,6,16,14,16,26,32,30,8,6,12,12,12].map(w=>({wch:w}));
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Rincian');
+  const by=new Map();for(const t of sel){const k=keyOf(t);if(!by.has(k))by.set(k,[]);by.get(k).push(t)}
+  const sm=[['NIK','Code Pelanggan','Nama','Jabatan/Alamat','Jumlah Transaksi','Jumlah Item','Total Belanja','Status']];
+  for(const l of by.values()){const f=l[0];sm.push([f.code||f.nama,f.kode,f.nama,f.alamat||'',l.length,l.reduce((x,t)=>x+t.items.length,0),l.reduce((x,t)=>x+t.total,0),f.baru?'Kode acak baru':'Anggota (Sheet1)'])}
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sm),'Ringkasan Pelanggan');
+  const nb=[['NIK','Code Pelanggan (acak)','Nama','Jabatan/Alamat'],...[...by.values()].filter(l=>l[0].baru).map(l=>[l[0].code||l[0].nama,l[0].kode,l[0].nama,l[0].alamat||''])];
+  if(nb.length>1)XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(nb),'Pelanggan Baru');
+  XLSX.writeFile(wb,`data_belanja_${S.ui.from||'awal'}_sd_${S.ui.to||'akhir'}.xlsx`);
+}
+
+// ───────────────────────── halaman ─────────────────────────
+const TPL=()=>`
+<div class="ph"><h1>Impor Belanja</h1><p>Baca file SQL besar langsung di browser, pilih periode &amp; transaksi, lalu simpan hanya yang terpilih ke Google Drive (tab Rincian)</p></div>
+
+<div class="tc">
+  <h3><span class="ib-step">1</span>Sumber data</h3>
+  <label class="ib-drop" id="ibDrop"><input type="file" id="ibFi" multiple accept=".sql,.txt,.xlsx,.xls,.csv"><b><i class="fas fa-file-import"></i> Klik atau seret file ke sini</b><small>.sql (file besar didukung, dibaca bertahap) · .xlsx / .xls / .csv · boleh beberapa file sekaligus</small></label>
+  <div class="ib-bar"><div id="ibBar"></div></div>
+  <div class="ib-msg" id="ibM0"></div>
+  <div class="ib-chips" id="ibFiles"></div>
+</div>
+
+<div class="tc">
+  <h3><span class="ib-step">2</span>Pilih tabel</h3>
+  <div class="ib-g">
+    <label>Tabel PENJUALAN<select class="fc" id="ibS1" disabled></select></label>
+    <label>Tabel ITEM PENJUALAN<select class="fc" id="ibS2" disabled></select></label>
+  </div>
+  <div class="ib-msg" id="ibM1"></div>
+</div>
+
+<div class="tc">
+  <h3><span class="ib-step">3</span>Periode belanja</h3>
+  <div class="ib-g">
+    <label>Jenis periode<select class="fc" id="ibPreset">
+      <option value="cutoff">Periode cut-off (mis. 29 Okt – 28 Nov)</option>
+      <option value="month">Bulan kalender (tgl 1 – akhir bulan)</option>
+      <option value="range">Rentang tanggal bebas</option></select></label>
+    <label id="ibLbMonth">Bulan (akhir periode)<input class="fc" type="month" id="ibMonth"></label>
+    <label id="ibLbSd">Mulai tanggal<input class="fc" type="number" min="1" max="31" id="ibSd"></label>
+    <label id="ibLbEd">Sampai tanggal<input class="fc" type="number" min="1" max="31" id="ibEd"></label>
+  </div>
+  <div class="ib-g" style="margin-top:12px">
+    <label>Dari tanggal<input class="fc" type="date" id="ibFrom"></label>
+    <label>Sampai tanggal<input class="fc" type="date" id="ibTo"></label>
+    <label><span>&nbsp;</span><button class="btn btn-ol" id="ibAll" type="button">Semua tanggal</button></label>
+  </div>
+  <div class="ib-msg" id="ibPm"></div>
+</div>
+
+<div class="tc">
+  <h3><span class="ib-step">4</span>Transaksi terpilih</h3>
+  <div class="kpi-grid" id="ibKpi"></div>
+  <div class="ta">
+    <div class="btn-grp"><button class="btn btn-ol btn-sm" id="ibSelAll" type="button"><i class="fas fa-check-square"></i> Pilih semua</button><button class="btn btn-ol btn-sm" id="ibSelNone" type="button"><i class="far fa-square"></i> Kosongkan</button></div>
+    <input class="si" id="ibQ" placeholder="Cari RESI / pelanggan / kode...">
+  </div>
+  <div class="ib-tw"><table><thead><tr><th style="width:36px"></th><th>RESI</th><th>Tanggal</th><th>Pelanggan</th><th class="ib-n">Item</th><th class="ib-n">Total</th><th>Catatan</th></tr></thead><tbody id="ibTb"></tbody></table></div>
+  <div class="ib-msg" id="ibTm"></div>
+  <div class="ib-msg" id="ibWarn"></div>
+</div>
+
+<div class="tc">
+  <h3><span class="ib-step">4b</span>Rincian belanja per pelanggan (terpilih)</h3>
+  <div class="ta"><input class="si" id="ibCq" placeholder="Cari nama / NIK / Code Pelanggan..."></div>
+  <div id="ibCust"></div><div class="ib-msg" id="ibCm"></div>
+</div>
+
+<div class="tc">
+  <h3><span class="ib-step">5</span>Simpan ke Google Drive</h3>
+  <div class="ib-msg" id="ibInfo" style="margin:0 0 12px">Memuat info tab Rincian…</div>
+  <div class="ib-g">
+    <label>Cara menyimpan<select class="fc" id="ibMode">
+      <option value="replace">Ganti isi tab Rincian dengan transaksi terpilih</option>
+      <option value="merge">Gabungkan: timpa RESI yang sama, data lain tetap</option></select></label>
+  </div>
+  <label class="ib-chk"><input type="checkbox" id="ibUpd"><span>Perbarui juga kolom <b>"Belanja Bulan ini"</b> di Sheet1 (jumlah TOTAL per anggota dari isi Rincian). Sel yang berisi rumus tidak ditimpa.</span></label>
+  <div class="btn-grp" style="margin-top:12px">
+    <button class="btn btn-pr" id="ibSend" type="button" disabled><i class="fas fa-cloud-upload-alt"></i> Kirim ke Google Drive</button>
+    <button class="btn btn-ol" id="ibXls" type="button" disabled><i class="fas fa-file-excel"></i> Unduh Excel</button>
+  </div>
+  <div class="ib-bar"><div id="ibBar2"></div></div>
+  <div class="ib-msg" id="ibSm"></div>
+</div>
+
+<div class="tc">
+  <h3><span class="ib-step">6</span>Baca penjualan per pelanggan dari Google Drive</h3>
+  <div class="btn-grp"><button class="btn btn-ol" id="ibDrLoad" type="button"><i class="fas fa-cloud-download-alt"></i> Muat dari Drive</button><button class="btn btn-ol" id="ibRepair" type="button"><i class="fas fa-screwdriver-wrench"></i> Perbaiki kode di tab Rincian</button></div>
+  <div class="ta" style="margin-top:10px"><input class="si" id="ibDq" placeholder="Cari nama / NIK / Code Pelanggan..."></div>
+  <div class="ib-tw"><table><thead><tr><th>Nama</th><th>NIK</th><th>Code Pelanggan</th><th class="ib-n">Trx</th><th class="ib-n">Total</th><th></th></tr></thead><tbody id="ibDtb"></tbody></table></div>
+  <div class="ib-msg" id="ibDm"></div><div id="ibDd"></div>
+</div>`;
+
+function wire(){
+  const fi=$i('ibFi');
+  fi.onchange=e=>e.target.files.length&&addFiles([...e.target.files]);
+  const dz=$i('ibDrop');
+  ['dragenter','dragover'].forEach(x=>dz.addEventListener(x,e=>{e.preventDefault();dz.classList.add('drag')}));
+  ['dragleave','drop'].forEach(x=>dz.addEventListener(x,e=>{e.preventDefault();dz.classList.remove('drag')}));
+  dz.addEventListener('drop',e=>e.dataTransfer.files.length&&addFiles([...e.dataTransfer.files]));
+  $i('ibS1').onchange=e=>{S.ui.s1=e.target.value;autoPeriod();build()};
+  $i('ibS2').onchange=e=>{S.ui.s2=e.target.value;build()};
+  $i('ibPreset').onchange=e=>{
+    S.ui.preset=e.target.value;
+    if(S.ui.preset!=='range'&&!S.ui.month){const r=S.dataRange;S.ui.month=r&&r.hi?monthForDate(r.hi,S.ui.preset,S.ui.sd,S.ui.ed):new Date().toISOString().slice(0,7)}
+    applyPreset();
+  };
+  $i('ibMonth').onchange=e=>{S.ui.month=e.target.value;applyPreset()};
+  $i('ibSd').onchange=e=>{S.ui.sd=e.target.value;applyPreset()};
+  $i('ibEd').onchange=e=>{S.ui.ed=e.target.value;applyPreset()};
+  $i('ibFrom').onchange=e=>{S.ui.from=e.target.value;S.ui.preset='range';syncPeriodInputs();build()};
+  $i('ibTo').onchange=e=>{S.ui.to=e.target.value;S.ui.preset='range';syncPeriodInputs();build()};
+  $i('ibAll').onclick=()=>{S.ui.from='';S.ui.to='';S.ui.preset='range';syncPeriodInputs();build()};
+  $i('ibQ').oninput=e=>{S.q=e.target.value;renderTrx()};
+  const vis=()=>{const q=S.q.trim().toLowerCase();return q?S.trx.filter(t=>`${t.resi} ${t.nama} ${t.code}`.toLowerCase().includes(q)):S.trx};
+  $i('ibSelAll').onclick=()=>{vis().forEach(t=>S.excluded.delete(t.resi));renderTrx()};
+  $i('ibSelNone').onclick=()=>{vis().forEach(t=>S.excluded.add(t.resi));renderTrx()};
+  $i('ibTb').onchange=e=>{
+    const c=e.target.closest('input[data-r]');if(!c)return;
+    c.checked?S.excluded.delete(c.dataset.r):S.excluded.add(c.dataset.r);renderKpi();
+  };
+  $i('ibMode').onchange=e=>{S.ui.mode=e.target.value};
+  $i('ibUpd').onchange=e=>{S.ui.upd=e.target.checked};
+  $i('ibSend').onclick=syncToDrive;
+  $i('ibXls').onclick=downloadXlsx;
+  $i('ibCq').oninput=e=>{S.cq=e.target.value;renderCust()};
+  $i('ibDrLoad').onclick=drLoad;$i('ibRepair').onclick=drRepair;
+  $i('ibDq').oninput=drRender;
+  $i('ibDtb').onclick=e=>{const b=e.target.closest('button[data-c]');if(b)drDetail(b.dataset.c)};
+  drRender();
+}
+function restore(){
+  $i('ibMode').value=S.ui.mode;$i('ibUpd').checked=S.ui.upd;$i('ibQ').value=S.q;
+  renderFiles();
+  syncPeriodInputs();
+  if(S.tables.size){fillSel(false)}else{renderTrx()}
+}
+
+window.pgImportBelanja=async function(){
+  const pc=$i('pageContent');
+  if(!(CU&&(CU.role==='Admin'||CU.role==='Manager'))){
+    pc.innerHTML='<div class="tc"><p style="color:#f87171">Akses ditolak — hanya Admin &amp; Manager.</p></div>';return;
+  }
+  if(!S.ui.month){S.ui.month=new Date().toISOString().slice(0,7);S.ui.preset='cutoff';applyPreset(true)}
+  pc.innerHTML=TPL();
+  wire();restore();loadInfo();
+};
+// diekspos untuk pengujian
+window.KopImport={scanSQL,computeTrx,exportRows,periodDates,monthForDate,ymd,S};
+})();
+</script>
+
 <script>
 (function(){
 const GP={"0": "M46 100Q33.7 100 25 94.1Q16.3 88.2 11.7 77Q7 65.9 7 50.1Q7 34.3 11.7 23.1Q16.3 11.9 25 5.9Q33.7 0 46 0Q58.3 0 67 6Q75.7 12 80.3 23.1Q85 34.3 85 50.1Q85 65.9 80.4 77Q75.8 88.2 67 94.1Q58.3 100 46 100ZM46 83.5Q52 83.5 56.1 79.5Q60.3 75.6 62.5 68.2Q64.7 60.7 64.7 50.1Q64.7 39.3 62.5 31.8Q60.3 24.3 56.1 20.4Q52 16.5 46 16.5Q40 16.5 35.8 20.4Q31.7 24.4 29.5 31.9Q27.3 39.3 27.3 50.1Q27.3 60.7 29.5 68.2Q31.7 75.6 35.8 79.5Q40 83.5 46 83.5Z", "1": "M67.4 1.3V98.7H47.5V18.9H46.8L24.6 34.7V16.4L46.1 1.3Z", "2": "M12 98.7V84.3L46.5 52Q51 47.6 54 44.2Q57 40.7 58.6 37.3Q60.2 33.9 60.2 30Q60.2 25.6 58.3 22.5Q56.3 19.3 52.9 17.6Q49.5 15.9 45.2 15.9Q40.6 15.9 37.2 17.8Q33.8 19.6 32 23Q30.2 26.4 30.2 31.2H11.1Q11.1 21.7 15.4 14.7Q19.8 7.6 27.5 3.8Q35.2 0 45.3 0Q55.6 0 63.3 3.7Q71 7.4 75.3 13.9Q79.6 20.3 79.6 28.8Q79.6 34.2 77.5 39.5Q75.3 44.8 69.9 51.3Q64.4 57.9 54.4 67.1L39.7 81.6V82.3H80.9V98.7Z", "3": "M45.7 100Q35.1 100 26.9 96.4Q18.7 92.7 14 86.3Q9.2 79.8 9.1 71.4H29.2Q29.4 75 31.6 77.7Q33.7 80.5 37.5 82Q41.2 83.5 45.8 83.5Q50.6 83.5 54.3 81.8Q57.9 80.1 60 77.1Q62.1 74.1 62.1 70.1Q62.1 66.1 59.9 63Q57.7 59.9 53.7 58.2Q49.6 56.5 43.9 56.5H34.9V41.6H43.9Q48.7 41.6 52.3 40Q55.9 38.3 58 35.4Q60 32.5 60 28.6Q60 24.8 58.3 22Q56.5 19.2 53.3 17.5Q50.2 15.9 45.9 15.9Q41.7 15.9 38.1 17.5Q34.6 19 32.4 21.8Q30.3 24.5 30.2 28.3H11Q11.1 20 15.7 13.6Q20.3 7.2 28.3 3.6Q36.2 0 46 0Q56 0 63.5 3.7Q71.1 7.3 75.2 13.5Q79.4 19.7 79.4 27.3Q79.4 35.5 74.3 41Q69.2 46.5 61.1 48V48.8Q68.2 49.7 73.1 52.7Q77.9 55.8 80.4 60.6Q82.9 65.4 82.9 71.4Q82.9 79.7 78.1 86.1Q73.4 92.6 65 96.3Q56.6 100 45.7 100Z", "4": "M7 81.4V65.6L47.8 1.3H72.8V65.3H85V81.4H72.8V98.7H53.6V81.4ZM54 65.3V23.3H53.3L27.2 64.5V65.3Z", "5": "M45.4 100Q35.4 100 27.6 96.3Q19.8 92.6 15.3 86.1Q10.7 79.7 10.5 71.4H30Q30.2 75.2 32.3 78.1Q34.4 81 37.9 82.6Q41.3 84.2 45.4 84.2Q50.3 84.2 54.1 82Q57.9 79.8 60 75.9Q62.2 72 62.2 66.8Q62.2 61.6 60 57.6Q57.8 53.6 54 51.4Q50.2 49.2 45.1 49.2Q40.7 49.2 36.7 50.9Q32.7 52.6 30.5 55.6L12.6 52.4L17.2 1.3H76.2V17.8H33.7L31.3 42.4H31.8Q34.4 38.9 39.5 36.6Q44.7 34.3 50.9 34.3Q57.5 34.3 63.1 36.7Q68.7 39 72.8 43.3Q76.9 47.6 79.2 53.5Q81.5 59.3 81.5 66.3Q81.5 76.1 77 83.7Q72.4 91.3 64.3 95.7Q56.2 100 45.4 100Z", "6": "M47.2 100Q39.8 100 32.9 97.5Q26 95 20.5 89.5Q15.1 84 11.8 74.8Q8.6 65.7 8.6 52.3Q8.6 40 11.4 30.3Q14.1 20.7 19.3 13.9Q24.5 7.1 31.7 3.5Q39 0 47.9 0Q57.5 0 64.9 3.8Q72.3 7.5 76.8 13.9Q81.4 20.3 82.3 28.3H62.7Q61.5 23.1 57.6 20.2Q53.7 17.2 47.9 17.2Q41.5 17.2 37.1 21Q32.7 24.8 30.5 31.7Q28.3 38.7 28.3 48.3H28.9Q31.1 44.1 34.8 41Q38.5 37.9 43.3 36.3Q48.1 34.7 53.4 34.7Q62 34.7 68.7 38.7Q75.5 42.7 79.4 49.9Q83.4 57 83.4 66.1Q83.4 76 78.8 83.7Q74.2 91.3 66.1 95.7Q58 100 47.2 100ZM47.1 84.2Q51.9 84.2 55.7 81.9Q59.5 79.5 61.7 75.6Q63.9 71.6 63.9 66.7Q63.9 61.8 61.8 57.8Q59.6 53.9 55.8 51.6Q52 49.3 47.2 49.3Q43.6 49.3 40.5 50.7Q37.5 52 35.2 54.4Q32.8 56.9 31.6 60Q30.3 63.1 30.3 66.7Q30.3 71.5 32.4 75.5Q34.6 79.4 38.4 81.8Q42.2 84.2 47.1 84.2Z", "7": "M18.6 98.7 59.2 18.4V17.8H12V1.3H80V18L39.4 98.7Z", "8": "M45.9 100Q35 100 26.6 96.4Q18.2 92.8 13.4 86.6Q8.5 80.4 8.5 72.5Q8.5 66.5 11.3 61.3Q14.1 56.2 18.8 52.8Q23.6 49.3 29.5 48.4V47.8Q21.8 46.1 16.9 40.1Q12.1 34.1 12.1 26.1Q12.1 18.6 16.5 12.7Q20.8 6.8 28.5 3.4Q36.1 0 45.9 0Q55.7 0 63.4 3.4Q71 6.8 75.4 12.7Q79.9 18.6 79.9 26.1Q79.9 34.1 75 40.1Q70.1 46.1 62.5 47.8V48.4Q68.3 49.3 73 52.8Q77.8 56.2 80.6 61.3Q83.5 66.5 83.5 72.5Q83.5 80.4 78.6 86.6Q73.8 92.8 65.3 96.4Q56.8 100 45.9 100ZM45.9 85.2Q51 85.2 54.7 83.4Q58.4 81.6 60.5 78.4Q62.6 75.2 62.6 71Q62.6 66.7 60.4 63.4Q58.3 60.1 54.5 58.1Q50.8 56.2 45.9 56.2Q41.1 56.2 37.3 58.1Q33.6 60 31.4 63.3Q29.3 66.6 29.3 71Q29.3 75.2 31.3 78.4Q33.4 81.6 37.2 83.4Q41 85.2 45.9 85.2ZM45.9 41.6Q50.1 41.6 53.4 39.9Q56.6 38.2 58.5 35.2Q60.3 32.2 60.3 28.3Q60.3 24.4 58.5 21.4Q56.7 18.5 53.4 16.9Q50.2 15.2 45.9 15.2Q41.7 15.2 38.5 16.9Q35.2 18.5 33.4 21.4Q31.6 24.4 31.6 28.3Q31.6 32.2 33.4 35.2Q35.2 38.2 38.5 39.9Q41.8 41.6 45.9 41.6Z", "9": "M44.1 100.1Q34.5 100.1 27 96.3Q19.6 92.5 15.1 86.1Q10.6 79.6 9.6 71.6H29.4Q30.5 76.8 34.4 79.9Q38.3 82.9 44.1 82.9Q50.5 82.9 54.9 79.1Q59.3 75.3 61.6 68.3Q63.8 61.2 63.8 51.6H63.2Q60.9 55.8 57.2 58.9Q53.5 62 48.8 63.6Q44.1 65.3 38.7 65.3Q30.1 65.3 23.3 61.2Q16.4 57.2 12.5 50.1Q8.6 42.9 8.6 33.8Q8.6 23.9 13.2 16.2Q17.8 8.6 26 4.2Q34.1 -0.3 44.9 -0.1Q52.3 -0.1 59.2 2.4Q66 4.9 71.5 10.4Q76.9 15.9 80.2 25.1Q83.4 34.2 83.4 47.6Q83.4 60 80.6 69.7Q77.8 79.4 72.7 86.2Q67.5 93 60.3 96.6Q53 100.1 44.1 100.1ZM44.8 50.7Q48.4 50.7 51.5 49.2Q54.6 47.8 56.9 45.5Q59.2 43.1 60.5 39.9Q61.8 36.8 61.8 33.1Q61.8 28.4 59.6 24.5Q57.4 20.6 53.6 18.2Q49.8 15.8 44.9 15.8Q40.2 15.8 36.3 18.1Q32.5 20.5 30.3 24.4Q28.1 28.4 28.1 33.3Q28.1 38.2 30.2 42.1Q32.4 46 36.2 48.3Q40 50.7 44.8 50.7Z", ":": "M18.3 85.5Q13.5 85.5 10.3 82.3Q7 79 7 74.2Q7 69.5 10.3 66.2Q13.5 63 18.3 63Q23.1 63 26.3 66.2Q29.6 69.5 29.6 74.2Q29.6 79 26.3 82.3Q23.1 85.5 18.3 85.5ZM18.3 37Q13.5 37 10.3 33.8Q7 30.5 7 25.8Q7 21 10.3 17.7Q13.5 14.5 18.3 14.5Q23.1 14.5 26.3 17.7Q29.6 21 29.6 25.8Q29.6 30.5 26.3 33.8Q23.1 37 18.3 37Z"},DW=92.0,CW=36.6;
