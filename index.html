@@ -537,7 +537,7 @@ background:linear-gradient(160deg,color-mix(in srgb,var(--c) 55%,#fff),var(--c))
     <div class="bn-item ni" data-p="inventory"><i class="fas fa-boxes"></i><span>Inventory</span></div>
     <div class="bn-item ni" data-p="sales"><i class="fas fa-chart-line"></i><span>Sales</span></div>
     <div class="bn-item ni" data-p="reports"><i class="fas fa-chart-pie"></i><span>Reports</span></div>
-    <div class="bn-item" id="bnMore" onclick="toggleSidebar()"><i class="fas fa-bars"></i><span>Menu</span></div>
+    <div class="bn-item ni" data-p="receipts"><i class="fas fa-receipt"></i><span>Receipts</span></div>
   </nav>
 </div>
 
@@ -4577,6 +4577,31 @@ document.addEventListener('click',e=>{if(dd&&!e.target.closest('#mbDrop'))close(
 document.addEventListener('keydown',e=>{if(e.key==='Escape')close();
   if(!e.altKey||e.ctrlKey||e.metaKey||typeof CU==='undefined'||!CU)return;const k=e.key.toLowerCase();
   if(k==='g'){e.preventDefault();refresh()}else if(MAP[k]&&navOk(MAP[k])){e.preventDefault();goto(MAP[k])}});
+})();
+</script>
+
+<style>
+/* ═══ Mode mobile: tanpa garis hitam, header sembunyi otomatis saat scroll ═══ */
+@media(max-width:700px){
+#island,#sbar,#hi{display:none!important}
+.app-header{padding:calc(env(safe-area-inset-top,0px) + 10px) 16px 8px!important;border:0!important;border-radius:0 0 22px 22px;box-shadow:0 6px 18px var(--gs)!important;transition:transform .28s ease,box-shadow .28s ease;will-change:transform}
+body.hdr-hide .app-header{transform:translateY(-118%);box-shadow:none!important}
+#loginPage{padding-top:24px!important}#loginPage .thp{top:16px!important}
+}
+</style>
+<script>
+(function(){
+const mq=matchMedia('(max-width:700px)');let last=0;
+const hide=v=>document.body.classList.toggle('hdr-hide',v);
+addEventListener('scroll',()=>{
+  if(!mq.matches)return;
+  const y=Math.max(0,scrollY),d=y-last;
+  if(y<=80){hide(false);last=y;return}      // dekat atas: header selalu tampak
+  if(Math.abs(d)<8)return;                    // abaikan gerak kecil
+  hide(d>0);last=y;                           // scroll turun → sembunyi, naik → tampil
+},{passive:true});
+['bottomNav','nav'].forEach(id=>{const e=document.getElementById(id);e&&e.addEventListener('click',()=>hide(false))});
+mq.addEventListener&&mq.addEventListener('change',()=>hide(false));
 })();
 </script>
 
