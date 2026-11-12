@@ -1460,12 +1460,13 @@ async function pgViewerDashboard(){
     return;
   }
 
+  const fmtD=s=>{const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})/);if(!m)return '';const B=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];return +m[3]+' '+B[+m[2]-1]+' '+m[1]};
   // ── KPI Cards: Simpanan Pokok s.d. NIK saja ──
   const kpiCards=[
     {icon:'fas fa-piggy-bank',label:'Simpanan Pokok',val:typeof member.simpananPokok==='number'?fmtRpK(member.simpananPokok):member.simpananPokok||'–'},
     {icon:'fas fa-money-bill-wave',label:'Simpanan Wajib',val:typeof member.simpananWajib==='number'?fmtRpK(member.simpananWajib):member.simpananWajib||'–'},
     {icon:'fas fa-chart-pie',label:'Nilai SHU',val:typeof member.nilaiSHU==='number'?fmtRpK(member.nilaiSHU):member.nilaiSHU||'–'},
-    {icon:'fas fa-shopping-bag',label:'Belanja Bulan Ini',val:fmtRpK(kpi.belanjaMonth)},
+    {icon:'fas fa-shopping-bag',label:'Belanja Bulan Ini',val:fmtRpK(kpi.belanjaMonth),note:kpi.belanjaAsOf?'s.d. '+fmtD(kpi.belanjaAsOf):''},
     {icon:'fas fa-calendar-alt',label:'Tgl Masuk Anggota',val:member.tglMasuk||'–'},
     {icon:'fas fa-id-badge',label:'Jabatan',val:member.jabatan||'–'},
     {icon:'fas fa-id-card',label:'NIK',val:member.nik||'–'},
@@ -1482,9 +1483,9 @@ async function pgViewerDashboard(){
 ${kpiCards.map(c=>`
   <div class="kpi">
     <h3><i class="${c.icon}"></i>&nbsp;${c.label}</h3>
-    <h2 style="font-size:1rem;margin-top:6px">${c.val}</h2>
+    <h2 style="font-size:1rem;margin-top:6px">${c.val}</h2>${c.note?`<div style="font-size:.72rem;color:var(--mut);margin-top:4px">${c.note}</div>`:''}
   </div>`).join('')}
-</div>`;
+</div>${kpi.belanjaAsOf?`<div style="margin-top:14px;padding:10px 14px;border-radius:12px;font-size:.82rem;color:var(--tl);border-left:4px solid var(--sc)"><i class="fas fa-circle-info"></i> <b>Belanja Bulan Ini</b> dihitung dari database transaksi koperasi yang terakhir diunggah, yaitu sampai dengan tanggal <b>${fmtD(kpi.belanjaAsOf)}</b>. Transaksi setelah tanggal tersebut baru muncul setelah database berikutnya diunggah.</div>`:''}`;
 }
 
 // ══════════════════════════════════════════════════
@@ -3865,6 +3866,7 @@ async function syncToDrive(){
   const per=(S.ui.from||S.ui.to)?`${idDate(S.ui.from)} s/d ${idDate(S.ui.to)}`:'semua tanggal';
   const ask=`Kirim ${fmtNum(sel.length)} transaksi (${fmtNum(rows.length)} baris item, ${fmtNum(cust)} pelanggan)\nperiode ${per} ke tab "Rincian" di Google Drive?\n\n`+
     (mode==='replace'?'Mode: GANTI — isi tab Rincian diganti dengan transaksi terpilih ini.':'Mode: GABUNG — RESI yang sama ditimpa, data lain dipertahankan.')+
+    '\nData belanja sampai tanggal: '+(sel.map(t=>t.tgl).filter(Boolean).sort().pop()?idDate(sel.map(t=>t.tgl).filter(Boolean).sort().pop()):'-')+' (ditampilkan ke anggota).'+
     '\nIsi lama dicadangkan otomatis ke tab "Rincian_backup".'+(upd?'\n"Belanja Bulan ini" di Sheet1 ikut diperbarui.':'');
   if(!confirm(ask))return;
   S.busy=true;renderKpi();
@@ -3875,7 +3877,8 @@ async function syncToDrive(){
   rows=exportRows(sel);
   const bar=$i('ibBar2'),total=Math.ceil(rows.length/BATCH),jobId=Date.now().toString(36)+Math.random().toString(36).slice(2,8);
   const resiList=mode==='merge'?[...new Set(sel.map(t=>t.resi))]:undefined;
-  const meta={from:S.ui.from,to:S.ui.to,trx:sel.length,rows:rows.length,customers:cust};
+  const ds=sel.map(t=>t.tgl).filter(Boolean).sort(),dataFrom=ds[0]||'',dataTo=ds[ds.length-1]||'';
+  const meta={from:S.ui.from,to:S.ui.to,trx:sel.length,rows:rows.length,customers:cust,dataFrom,dataTo};
   let last=null,ok=true;
   for(let i=0;i<total;i++){
     msg('ibSm',`Mengirim batch ${i+1} dari ${total}… (${fmtNum(Math.min((i+1)*BATCH,rows.length))}/${fmtNum(rows.length)} baris)`);
@@ -3893,6 +3896,7 @@ async function syncToDrive(){
     let t=`✓ Selesai: ${fmtNum(rows.length)} baris dari ${fmtNum(sel.length)} transaksi tersimpan ke tab Rincian`+(last&&last.totalRows!=null?` (isi tab sekarang ${fmtNum(last.totalRows)} baris)`:'')+'.';
     if(last&&last.belanjaUpdated!=null)t+=` "Belanja Bulan ini": ${fmtNum(last.belanjaUpdated)} anggota diperbarui`+(last.belanjaSkipped?`, ${fmtNum(last.belanjaSkipped)} dilewati karena berisi rumus`:'')+'.';
     if(last&&last.belanjaNote)t+=' '+last.belanjaNote;
+    if(dataTo)t+=` Anggota akan melihat "Belanja Bulan Ini" sampai dengan ${idDate(last&&last.dataAsOf||dataTo)}.`;
     msg('ibSm',t,'ok');toast('Data belanja tersimpan ke Google Drive');
     loadInfo();
   }
