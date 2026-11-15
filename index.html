@@ -512,8 +512,10 @@ background:linear-gradient(160deg,color-mix(in srgb,var(--c) 55%,#fff),var(--c))
       <div class="ni" data-p="stok" id="navStok"><i class="fas fa-triangle-exclamation"></i><span>Alert Stok</span><span id="stokBadge" style="display:none;margin-left:auto;background:#ef4444;color:#fff;border-radius:10px;padding:1px 8px;font-size:.7rem;font-weight:700"></span></div>
       <div class="ni" data-p="jurnal" id="navJurnal"><i class="fas fa-book"></i><span>Jurnal</span></div>
       <div class="ni" data-p="settings" id="navSettings"><i class="fas fa-cogs"></i><span>Settings</span></div>
+      <div class="ni" data-p="ringkasan" id="navRingkasan"><i class="fas fa-file-invoice"></i><span>Ringkasan Belanja</span></div>
       <div class="ni" data-p="changepwd"><i class="fas fa-key"></i><span>Ganti Password</span></div>
       <div class="ni" id="logoutBtn"><i class="fas fa-sign-out-alt"></i><span>Logout</span></div>
+      <div class="ni" id="custViewBtn" title="Lihat aplikasi seperti tampilan pelanggan"><i class="fas fa-eye"></i><span>Mode View Pelanggan</span></div>
     </nav>
   </div>
 
@@ -900,6 +902,8 @@ async function doLogin(){
       n.style.display=isAdmin?'':'none';
     } else if(n.dataset.p==='importbelanja'||n.dataset.p==='datasql'||n.dataset.p==='jurnal'){
       n.style.display=(isAdmin||isManager)?'':'none';
+    } else if(n.dataset.p==='ringkasan'){
+      n.style.display=isStaff?'none':'';
     } else if(n.dataset.p==='settings'){
       n.style.display=(isStaff||isViewer)?'none':'';
     } else if(isViewer && viewerHide.includes(n.dataset.p)){
@@ -910,6 +914,7 @@ async function doLogin(){
   });
 
   btn.disabled=false; btn.innerHTML='<i class="fas fa-sign-in-alt"></i> Masuk';
+  if(window.cvOnLogin)cvOnLogin();
   updateBottomNav();
   goto('dashboard');
 }
@@ -1042,7 +1047,7 @@ function closeDrawer(){
 // PAGE TITLE for mobile header + trigger enter animation
 const PAGE_TITLES={dashboard:'Dashboard',inventory:'Inventory',suppliers:'Suppliers',customers:'Customers',
   purchases:'Purchases',sales:'Sales',receipts:'Receipts',payments:'Payments',reports:'Reports',
-  settings:'Settings',changepwd:'Ganti Password',importbelanja:'Impor Belanja',datasql:'Data SQL',jurnal:'Jurnal',stok:'Alert Stok'};
+  settings:'Settings',changepwd:'Ganti Password',importbelanja:'Impor Belanja',datasql:'Data SQL',jurnal:'Jurnal',stok:'Alert Stok',ringkasan:'Ringkasan Belanja'};
 function updateHeaderForPage(p){
   const h=document.getElementById('headerPageTitle');
   if(h) h.textContent=PAGE_TITLES[p]||'KopSUS App';
@@ -1196,7 +1201,7 @@ function goto(p){
   destroyCharts();
   const pages={dashboard:pgDashboard,inventory:pgInventory,suppliers:pgSuppliers,customers:pgCustomers,whatsapp:pgWhatsApp,
     purchases:pgPurchases,sales:pgSales,receipts:pgReceipts,payments:pgPayments,reports:pgReports,settings:pgSettings,
-    changepwd:pgChangePassword,importbelanja:pgImportBelanja,datasql:pgDataSQL,jurnal:pgJurnal,stok:pgStok};
+    changepwd:pgChangePassword,importbelanja:pgImportBelanja,datasql:pgDataSQL,jurnal:pgJurnal,stok:pgStok,ringkasan:pgRingkasan};
   document.getElementById('pageContent').innerHTML='';
   if(pages[p]){
     const result=pages[p]();
@@ -1398,10 +1403,11 @@ function fmtRpK(n){
 
 async function loadViewerData(){
   if(_cache.viewerData) return _cache.viewerData;
+  if(window.CV&&window.CV.on&&window.cvViewerData){const d0=await window.cvViewerData();if(!d0.error)_cache.viewerData=d0;return d0}
 
   let member={}, kpi={}, charts={}, rincian={}, error=null;
 
-  if(USE_BACKEND){
+  if(USE_BACKEND&&!(window.CV&&window.CV.on)){
     const res=await api('getViewerDashboard',{token:SESSION_TOKEN});
     if(res&&res.ok){
       member=res.member||{}; kpi=res.kpi||{};
@@ -2000,6 +2006,7 @@ function waThisMonthSpend(id){
 // backend baru 'getMembersFinance' (admin-only, harus ditambahkan di Code.gs — lihat
 // contoh yang saya berikan di chat). Kalau action itu belum ada di backend, kode ini
 // otomatis jatuh ke cara lama (baca kolom di Customers) supaya tidak error.
+const wnk=v=>{let s=String(v==null?'':v).trim().toUpperCase().replace(/\.0+$/,'').replace(/\s+/g,' ');return /^\d+$/.test(s)?s.replace(/^0+(?=\d)/,''):s};
 let _waFinanceMap={};
 async function loadWaFinanceMap(){
   _waFinanceMap={};
@@ -2007,14 +2014,14 @@ async function loadWaFinanceMap(){
   try{
     const res=await api('getMembersFinance',{});
     if(res&&res.ok&&Array.isArray(res.data)){
-      res.data.forEach(m=>{ _waFinanceMap[String(m.customerId||m['Customer ID']||m.id)]=m; });
+      res.data.forEach(m=>{ _waFinanceMap[wnk(m.customerId||m['Customer ID']||m.id)]=m; });
     }
   }catch(e){ console.warn('[WA] getMembersFinance belum tersedia di backend:',e.message); }
 }
 function waCustomerInfo(r){
   const id=String(waField(r,'Customer ID','id'));
   if(waInfoCache[id]) return waInfoCache[id];
-  const fin=_waFinanceMap[id];
+  const fin=_waFinanceMap[wnk(id)];
   const pick=(...keys)=>{
     for(const k of keys){ const v=waField(r,k); if(v!==''&&v!==null&&v!==undefined)return v; }
     return '';
@@ -4605,5 +4612,290 @@ mq.addEventListener&&mq.addEventListener('change',()=>hide(false));
 })();
 </script>
 
+
+<style id="ks-droplist-fix">
+/* ═══ Perbaikan droplist: warna, saturasi & ketajaman jelas di mode terang/gelap ═══ */
+:root{--dd-bg:#ffffff;--dd-tx:#121417;--dd-bd:rgba(40,60,90,.28);--dd-hi:#1fa84a;--dd-sh:0 14px 36px rgba(20,35,60,.28),0 2px 6px rgba(20,35,60,.14)}
+:root[data-theme=dark]{--dd-bg:#10241a;--dd-tx:#f4f8f5;--dd-bd:rgba(255,255,255,.28);--dd-hi:#2fd160;--dd-sh:0 16px 40px rgba(0,0,0,.65),0 2px 6px rgba(0,0,0,.45)}
+/* kotak pilihan (select) — latar solid, teks tajam, tanpa blur */
+select,.fc,.fg2 select{
+  background-color:var(--dd-bg)!important;color:var(--dd-tx)!important;border:1.5px solid var(--dd-bd)!important;
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;filter:none!important;opacity:1!important;
+  font-weight:500;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;
+  accent-color:var(--dd-hi);color-scheme:light}
+:root[data-theme=dark] select,:root[data-theme=dark] .fc,:root[data-theme=dark] .fg2 select{color-scheme:dark}
+select:hover{border-color:var(--dd-hi)!important}
+select:focus{outline:none;border-color:var(--dd-hi)!important;box-shadow:0 0 0 3.5px color-mix(in srgb,var(--dd-hi) 30%,transparent)!important}
+/* daftar pilihan (option) — solid, kontras tinggi */
+select option,select optgroup{background-color:var(--dd-bg)!important;color:var(--dd-tx)!important;font-weight:500;filter:none!important;opacity:1!important}
+select option:hover,select option:focus{background:var(--dd-hi)!important;color:#fff!important}
+select option:checked{background:var(--dd-hi) linear-gradient(var(--dd-hi),var(--dd-hi))!important;color:#fff!important;font-weight:700}
+select option:disabled{color:color-mix(in srgb,var(--dd-tx) 45%,transparent)!important}
+/* menu dropdown bilah atas (Berkas / Tampilan / Jendela / Bantuan) */
+#mbDrop{background:var(--dd-bg)!important;color:var(--dd-tx)!important;border:1.5px solid var(--dd-bd)!important;box-shadow:var(--dd-sh)!important;
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;filter:none!important;opacity:1!important;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+#mbDrop .mbi{color:var(--dd-tx)!important;font-weight:500}
+#mbDrop .mbi span:last-child{opacity:.8!important;font-weight:600}
+#mbDrop .mbi:hover,#mbDrop .mbi[style*="color-mix"]{background:var(--dd-hi)!important;color:#fff!important}
+#mbDrop .mbi:hover span,#mbDrop .mbi[style*="color-mix"] span{color:#fff!important;opacity:1!important}
+#mbDrop>div[style*="height:1px"]{background:var(--dd-bd)!important}
+</style>
+
+<style id="ks-font-sharp">
+/* ═══ Ketajaman font diperdalam: render lebih tajam, kontras teks lebih kuat ═══ */
+:root{--td:#0d0f12;--tl:#25282e;--mut:rgba(40,46,58,.88)}
+:root[data-theme=dark]{--td:#fbfdfc;--tl:#e4f0e8;--mut:rgba(240,248,243,.86)}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body,body *{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;font-kerning:normal;font-optical-sizing:auto;font-synthesis:none}
+/* teks tanpa bayangan/blur di atas kaca */
+.kpi,.cc,.tc,.dt-card,.mb,.lc,.sidebar,.bottom-nav,#menubar,.app-header,table,label,input,select,textarea,.ni,.btn,.badge,.tab-btn,.toast{text-shadow:none!important}
+/* bobot huruf lebih mantap agar garis huruf tidak tipis */
+body{font-weight:450}
+tbody td,.ni,.tab-btn,label,.badge{font-weight:500}
+thead th,.kpi h3,.fg2 label,.ib-g label{font-weight:700;letter-spacing:.01em}
+.ph h1,.tc h3,.cc h3,.mb h2,.dt-card h4,.kpi h2{font-weight:800;letter-spacing:-.012em}
+.btn,.lb{font-weight:700}
+input,select,textarea,.fc,.si{font-weight:500;letter-spacing:0}
+::placeholder{color:var(--mut)!important;opacity:1!important}
+/* lapisan GPU yang membuat teks buram dilepas */
+.app-header{will-change:auto!important}
+.kpi,.cc,.tc,.dt-card,.mb{-webkit-transform:none;backface-visibility:visible}
+/* teks di grafik (ApexCharts / SVG) */
+svg text,.apexcharts-text,.apexcharts-legend-text,.apexcharts-tooltip{text-rendering:geometricPrecision!important;-webkit-font-smoothing:antialiased}
+.apexcharts-text{fill-opacity:1!important;font-weight:600}
+.apexcharts-legend-text{font-weight:600!important}
+canvas,img{image-rendering:auto}
+</style>
+
+<style id="ks-customer-view">
+/* ═══ Mode View Pelanggan & Ringkasan Belanja ═══ */
+#custViewBtn.cv-on{color:#fff;background:linear-gradient(90deg,var(--na1),var(--na2));border-left-color:var(--sc)}
+#cvBanner{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:10px 16px 0;padding:10px 14px;border-radius:14px;background:linear-gradient(180deg,#52dc72,#22a848);color:#fff;font-weight:700;font-size:.85rem;box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 8px 22px rgba(0,0,0,.2)}
+#cvBanner button{border:0;border-radius:10px;padding:6px 14px;font-weight:700;cursor:pointer;background:#fff;color:#14782f}
+tfoot td{padding:10px 12px;border-top:2px solid var(--bc)}
+</style>
+<script>
+/* ═══ Mode View Pelanggan + Ringkasan Belanja per periode (dari SQL Impor Belanja / data Google Drive) ═══ */
+(function(){
+'use strict';
+const BLNF=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+const CV={on:false,cust:null,real:null};window.CV=CV;
+const nk=s=>String(s==null?'':s).toLowerCase().replace(/[^a-z0-9]/g,'');
+const $g=id=>document.getElementById(id);
+const p2=n=>String(n).padStart(2,'0');
+
+/* ── tanggal & periode: ikut pengaturan periode di Impor Belanja (cut-off 29–28 dst.) ── */
+function isoDate(v){
+  if(v instanceof Date&&!isNaN(v))return v.getFullYear()+'-'+p2(v.getMonth()+1)+'-'+p2(v.getDate());
+  const s=String(v==null?'':v);let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return m[0];
+  m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);if(m)return m[3]+'-'+p2(m[1])+'-'+p2(m[2]);   // MM/DD/YYYY (format internal aplikasi)
+  return '';
+}
+function cfg(){const u=(window.KopImport&&KopImport.S&&KopImport.S.ui)||{};return{preset:u.preset==='range'||!u.preset?(u.preset==='range'?'month':'cutoff'):u.preset,sd:u.sd||29,ed:u.ed||28}}
+const perKey=iso=>{const c=cfg();try{return KopImport.monthForDate(iso,c.preset,c.sd,c.ed)}catch(e){return iso.slice(0,7)}};
+function perLabel(mk){
+  const c=cfg(),y=+mk.slice(0,4),m=+mk.slice(5,7);let t=BLNF[m-1]+' '+y;
+  try{const pd=KopImport.periodDates(c.preset,mk,c.sd,c.ed);
+    if(pd&&c.preset==='cutoff'){const f=d=>(+d.slice(8,10))+' '+BLNF[+d.slice(5,7)-1];t+=' ('+f(pd[0])+' – '+f(pd[1])+')'}}catch(e){}
+  return t;
+}
+const addTo=(m,k,v)=>m.set(k,(m.get(k)||0)+v);
+
+/* ── sumber data ── */
+// A) SQL lokal (hasil upload di Impor Belanja): semua pelanggan
+async function sqlSales(){
+  if(!window.KopSQL)return null;
+  try{await KopDB.loadedP}catch(e){}
+  return await KopSQL.get('getSalesOrders');   // null bila belum ada data SQL / sumber bukan SQL lokal
+}
+// B) Google Drive lewat backend (loadViewerData): hanya milik pelanggan yang login
+async function driveTotals(){
+  const d=await loadViewerData();
+  if(d.error)return{error:d.error};
+  const m=new Map();
+  (d.rincian||[]).forEach(r=>{
+    const dmy=String(r.trxDate||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/),iso=r.trxIso||(dmy?dmy[3]+'-'+p2(dmy[2])+'-'+p2(dmy[1]):isoDate(r.trxDate));if(!iso)return;   // backend: dd/MM/yyyy
+    const its=Array.isArray(r.items)?r.items:[];
+    const tot=its.length?its.reduce((a,i)=>a+(+i.total||0),0):(+r.amountReceived||0);
+    addTo(m,perKey(iso),tot);
+  });
+  return{totals:m};
+}
+async function localTotalsFor(custId){
+  const so=await sqlSales();
+  if(!so)return{error:'Data SQL lokal belum dimuat. Unggah file SQL lebih dulu di menu Impor Belanja (SQL).'};
+  const m=new Map();
+  so.forEach(r=>{if(String(r.customerId)!==String(custId))return;const iso=isoDate(r.soDate);if(!iso)return;addTo(m,perKey(iso),+r.totalSOAmount||0)});
+  return{totals:m};
+}
+
+/* ═══ HALAMAN PELANGGAN ═══ */
+const perSorted=m=>[...m.keys()].sort().reverse();
+async function renderCustomer(pc){
+  const head=`<div class="ph"><h1>Ringkasan Belanja</h1><p>${CV.on&&CV.cust?'Tampilan untuk <b>'+esc(CV.cust.nama||CV.cust.id)+'</b> · ':''}Total belanja Anda pada setiap periode</p></div>`;
+  pc.innerHTML=head+`<div style="display:flex;align-items:center;justify-content:center;padding:50px;gap:12px;color:var(--tl)"><i class="fas fa-spinner fa-spin" style="font-size:1.4rem;color:var(--pr)"></i> Memuat ringkasan...</div>`;
+  const r=(CV.on&&CV.cust)?await localTotalsFor(CV.cust.id):await driveTotals();
+  if(r.error){pc.innerHTML=head+`<div class="tc"><p style="color:#f87171;padding:12px">${esc(r.error)}</p></div>`;return}
+  const tot=r.totals,per=perSorted(tot);
+  if(!per.length){pc.innerHTML=head+`<div class="tc"><p style="padding:14px;color:var(--tl)"><i class="fas fa-circle-info"></i> Belum ada data belanja untuk akun ini.</p></div>`;return}
+  const all=[...tot.values()].reduce((a,b)=>a+b,0);
+  pc.innerHTML=head+`
+<div class="tc"><div class="ib-g"><label>Pilih periode<select class="fc" id="rkSel">${per.map(p=>`<option value="${p}">${esc(perLabel(p))}</option>`).join('')}</select></label></div></div>
+<div id="rkOut" style="margin:12px 0"></div>
+<div class="tc"><h3>Semua periode</h3><div class="ib-tw" style="overflow-x:auto"><table><thead><tr><th>Periode</th><th style="text-align:right">Total Belanja</th></tr></thead><tbody id="rkAll"></tbody>
+<tfoot><tr><td><b>Total semua periode</b></td><td style="text-align:right"><b>${fmtRp(all)}</b></td></tr></tfoot></table></div></div>`;
+  const show=()=>{
+    const p=$g('rkSel').value,v=tot.get(p)||0,i=per.indexOf(p),prev=per[i+1],pv=prev!==undefined?tot.get(prev):undefined;
+    let chg='–',note='';
+    if(pv!==undefined){const d=v-pv,pct=pv?Math.round(d/pv*1000)/10:null;chg=(d>=0?'▲ ':'▼ ')+fmtRp(Math.abs(d));note='dibanding '+perLabel(prev).replace(/ \(.*\)/,'')+(pct===null?'':' ('+(d>=0?'+':'')+pct.toLocaleString('id-ID')+'%)')}
+    const card=(ic,l,val,n)=>`<div class="kpi"><h3><i class="${ic}"></i>&nbsp;${l}</h3><h2 style="font-size:1.15rem;margin-top:6px">${val}</h2>${n?`<div style="font-size:.74rem;color:var(--mut);margin-top:4px">${esc(n)}</div>`:''}</div>`;
+    $g('rkOut').innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px">
+      ${card('fas fa-shopping-bag','Total Belanja',fmtRp(v),perLabel(p))}
+      ${card('fas fa-arrow-trend-up','Perubahan',chg,note)}
+      ${card('fas fa-layer-group','Rata-rata / periode',fmtRp(all/per.length),per.length+' periode')}</div>`;
+    $g('rkAll').innerHTML=per.map(q=>`<tr${q===p?' style="background:var(--pr2);font-weight:700"':''}><td>${esc(perLabel(q))}</td><td style="text-align:right">${fmtRp(tot.get(q))}</td></tr>`).join('');
+  };
+  $g('rkSel').onchange=show;show();
+}
+
+/* ═══ HALAMAN ADMIN / MANAGER: hanya melihat (dihitung dari SQL lokal), tanpa upload ═══ */
+async function renderAdmin(pc){
+  const head=`<div class="ph"><h1>Ringkasan Belanja Pelanggan</h1><p>Total belanja tiap pelanggan per periode, dihitung otomatis dari data SQL yang sudah diunggah di Impor Belanja.</p></div>`;
+  pc.innerHTML=head+`<div style="display:flex;align-items:center;justify-content:center;padding:50px;gap:12px;color:var(--tl)"><i class="fas fa-spinner fa-spin" style="font-size:1.4rem;color:var(--pr)"></i> Menghitung...</div>`;
+  const so=await sqlSales();
+  if(!so){pc.innerHTML=head+`<div class="tc"><p style="padding:14px;color:var(--tl)"><i class="fas fa-circle-info"></i> Data SQL lokal belum dimuat. Unggah file SQL di <b>Impor Belanja (SQL)</b> dulu, atau pastikan sumber data halaman = SQL lokal.</p><button class="btn btn-pr" id="rkGo"><i class="fas fa-file-import"></i> Buka Impor Belanja</button></div>`;
+    const g=$g('rkGo');if(g)g.onclick=()=>goto('importbelanja');return}
+  const by=new Map(),pers=new Set();
+  so.forEach(r=>{const iso=isoDate(r.soDate);if(!iso)return;const pk=perKey(iso);pers.add(pk);
+    const k=String(r.customerId),e=by.get(k)||{id:k,nama:r.customerName||k,t:new Map()};addTo(e.t,pk,+r.totalSOAmount||0);by.set(k,e)});
+  const per=[...pers].sort().reverse();
+  if(!per.length){pc.innerHTML=head+`<div class="tc"><p style="padding:14px">Tidak ada transaksi bertanggal pada data SQL.</p></div>`;return}
+  pc.innerHTML=head+`
+<div class="tc"><div class="ib-g">
+  <label>Periode<select class="fc" id="rkFp">${per.map(p=>`<option value="${p}">${esc(perLabel(p))}</option>`).join('')}</select></label>
+  <label>Cari pelanggan<input class="si" id="rkQ" placeholder="Nama / ID..."></label></div>
+  <div id="rkInfo" style="font-size:.82rem;color:var(--tl);margin:10px 0"></div>
+  <div class="ib-tw" style="overflow-x:auto"><table><thead><tr><th>ID</th><th>Nama</th><th style="text-align:right">Total Belanja</th></tr></thead><tbody id="rkBody"></tbody></table></div></div>
+<div class="tc"><p style="font-size:.82rem;color:var(--tl)"><i class="fas fa-cloud-arrow-up"></i> Pelanggan melihat ringkasannya dari data <b>Google Drive</b>. Kirim tiap periode lewat <b>Impor Belanja → Kirim ke Google Drive</b> dengan mode <b>Gabung</b>, supaya periode-periode sebelumnya tetap tersimpan (mode Ganti hanya menyisakan periode yang terakhir dikirim).</p>
+<button class="btn btn-ol" id="rkGo2" style="margin-top:8px"><i class="fas fa-file-import"></i> Buka Impor Belanja</button></div>`;
+  const draw=()=>{
+    const p=$g('rkFp').value,q=nk($g('rkQ').value);
+    const rows=[...by.values()].filter(e=>e.t.has(p)&&(!q||nk(e.id+e.nama).includes(q))).map(e=>({id:e.id,nama:e.nama,v:e.t.get(p)})).sort((a,b)=>b.v-a.v);
+    const tot=rows.reduce((a,r)=>a+r.v,0);
+    $g('rkInfo').innerHTML=`${fmtNum(rows.length)} pelanggan · total <b>${fmtRp(tot)}</b>${rows.length>300?' · menampilkan 300 teratas':''}`;
+    $g('rkBody').innerHTML=rows.slice(0,300).map(r=>`<tr><td>${esc(r.id)}</td><td>${esc(r.nama)}</td><td style="text-align:right">${fmtRp(r.v)}</td></tr>`).join('')||'<tr><td colspan="3" style="text-align:center;padding:18px">Tidak ada data.</td></tr>';
+  };
+  draw();$g('rkFp').onchange=draw;$g('rkQ').oninput=draw;$g('rkGo2').onclick=()=>goto('importbelanja');
+}
+window.pgRingkasan=async function(){
+  const pc=$g('pageContent');
+  if(CU&&(CU.role==='Admin'||CU.role==='Manager'))return renderAdmin(pc);
+  if(CU&&CU.role==='Viewer')return renderCustomer(pc);
+  pc.innerHTML='<div class="tc"><p style="color:#f87171;padding:12px">Akses ditolak.</p></div>';
+};
+
+/* ═══ MODE VIEW PELANGGAN ═══ */
+const VH=['stok','inventory','suppliers','customers','purchases','payments','reports','settings'];
+function applyNav(role){
+  const isA=role==='Admin',isM=role==='Manager',isS=role==='Staff',isV=role==='Viewer';
+  document.querySelectorAll('.ni[data-p]').forEach(n=>{
+    const p=n.dataset.p;
+    if(p==='whatsapp')n.style.display=isA?'':'none';
+    else if(p==='importbelanja'||p==='datasql'||p==='jurnal')n.style.display=(isA||isM)?'':'none';
+    else if(p==='ringkasan')n.style.display=isS?'none':'';
+    else if(p==='settings')n.style.display=(isS||isV)?'none':'';
+    else if(isV&&VH.includes(p))n.style.display='none';
+    else n.style.display='';
+  });
+  updateBottomNav();
+}
+function paintBtn(){
+  const b=$g('custViewBtn');if(!b)return;
+  b.classList.toggle('cv-on',CV.on);
+  b.querySelector('i').className='fas '+(CV.on?'fa-eye-slash':'fa-eye');
+  b.querySelector('span').textContent=CV.on?'Keluar Mode Pelanggan':'Mode View Pelanggan';
+  b.title=CV.on?'Kembali ke tampilan '+(CV.real?CV.real.role:'pengurus'):'Lihat aplikasi seperti tampilan pelanggan';
+}
+function banner(){
+  let b=$g('cvBanner');if(!CV.on){b&&b.remove();return}
+  if(!b){b=document.createElement('div');b.id='cvBanner';const pc=$g('pageContent');pc.parentNode.insertBefore(b,pc)}
+  b.innerHTML=`<span><i class="fas fa-eye"></i> Mode View Pelanggan — <b>${esc(CV.cust.nama||CV.cust.id)}</b></span><button type="button" id="cvOut">Keluar</button>`;
+  $g('cvOut').onclick=exitCV;
+}
+function enterCV(cust){
+  CV.real={role:CU.role,linked:CU.linkedCustomerId,sb:$g('sbRole').textContent};
+  CV.on=true;CV.cust=cust;
+  CU.role='Viewer';CU.linkedCustomerId=cust.id||'';
+  $g('sbRole').textContent='Mode Pelanggan';
+  invalidateCache();applyNav('Viewer');paintBtn();banner();goto('dashboard');
+}
+function exitCV(){
+  if(!CV.on)return;const r=CV.real||{};
+  CU.role=r.role||CU.role;CU.linkedCustomerId=r.linked||'';
+  $g('sbRole').textContent=r.sb||CU.role;
+  CV.on=false;CV.cust=null;CV.real=null;
+  invalidateCache();applyNav(CU.role);paintBtn();banner();goto('dashboard');
+}
+const _om=window.openModal;
+window.openModal=function(){const s=$g('modalSaveBtn');if(s)s.innerHTML='<i class="fas fa-save"></i> Simpan';return _om.apply(this,arguments)};
+async function pickCustomer(){
+  const m=new Map();
+  const so=await sqlSales();
+  if(so)so.forEach(r=>{const k=String(r.customerId);if(!m.has(k))m.set(k,{id:k,nama:r.customerName||k})});
+  (typeof CUSTOMERS!=='undefined'?CUSTOMERS:[]).forEach(c=>{const k=String(c.id);if(!m.has(k))m.set(k,{id:k,nama:c.name||k})});
+  const list=[...m.values()].sort((a,b)=>String(a.nama).localeCompare(String(b.nama)));
+  if(!list.length)return toast('Belum ada data pelanggan. Unggah SQL di Impor Belanja dulu.',true);
+  _om('Mode View Pelanggan',`<div class="fg2"><label>Cari pelanggan</label><input id="cvQ" placeholder="Nama / ID..."></div>
+  <div class="fg2" style="margin-top:8px"><label>Lihat aplikasi sebagai</label><select id="cvSel" size="1"></select></div>
+  <p style="font-size:.78rem;color:var(--mut);margin-top:8px">Anda akan melihat menu dan data seperti pelanggan tersebut. Tidak ada data yang diubah.</p>`,()=>{
+    const c=cur[+$g('cvSel').value];if(!c)return toast('Pilih pelanggan dulu.',true);closeModal();enterCV(c)});
+  let cur=list;
+  const fill=()=>{const q=nk($g('cvQ').value);cur=list.filter(c=>!q||nk(c.id+c.nama).includes(q)).slice(0,500);
+    $g('cvSel').innerHTML=cur.map((c,i)=>`<option value="${i}">${esc(c.nama)}${c.id&&c.id!==c.nama?' ('+esc(c.id)+')':''}</option>`).join('')||'<option value="">— tidak ada —</option>'};
+  fill();$g('cvQ').oninput=fill;
+  const s=$g('modalSaveBtn');if(s)s.innerHTML='<i class="fas fa-eye"></i> Masuk Mode Pelanggan';
+}
+/* data dashboard anggota untuk Mode View Pelanggan — dibangun dari SQL lokal pelanggan terpilih */
+window.cvViewerData=async function(){
+  if(!CV.on||!CV.cust)return{error:'Pelanggan belum dipilih.'};
+  const id=String(CV.cust.id),so=await sqlSales();
+  if(!so)return{error:'Data SQL lokal belum dimuat atau sumber data halaman bukan "SQL lokal". Unggah SQL di Impor Belanja (SQL), lalu pilih Tampilan → Sumber data: SQL lokal.'};
+  const [sd,cu,jr]=await Promise.all([KopSQL.get('getSalesDetails'),KopSQL.get('getCustomers'),KopDB.get('__jurnal')]);
+  const c=(cu||[]).find(x=>String(x.id)===id)||{};
+  const mine=so.filter(r=>String(r.customerId)===id).map(r=>({r,iso:isoDate(r.soDate)})).sort((a,b)=>(b.iso||'').localeCompare(a.iso||''));
+  const ids=new Set(mine.map(x=>String(x.r.soId))),items=new Map();
+  (sd||[]).forEach(d=>{const k=String(d.soId);if(!ids.has(k))return;let a=items.get(k);if(!a){a=[];items.set(k,a)}
+    a.push({itemName:d.itemName,satuan:d.itemCategory||'',qty:+d.qtySold||0,harga:+d.unitPrice||0,total:+d.totalSalesPrice||0})});
+  const dmyS=iso=>iso?iso.slice(8,10)+'/'+iso.slice(5,7)+'/'+iso.slice(0,4):'';
+  const rincian=mine.map(({r,iso})=>{const its=items.get(String(r.soId))||[],tot=its.length?its.reduce((a,i)=>a+i.total,0):(+r.totalSOAmount||0);
+    return{trxDate:dmyS(iso),trxIso:iso,trxId:r.soId,soId:r.soId,invoiceNum:r.invoiceNum||r.soId,pmtMode:'Tunai',amountReceived:tot,items:its}});
+  const maxIso=so.reduce((m,r)=>{const i=isoDate(r.soDate);return i&&i>m?i:m},''),curP=maxIso?perKey(maxIso):'';
+  const belanjaMonth=rincian.filter(x=>x.trxIso&&perKey(x.trxIso)===curP).reduce((a,x)=>a+x.amountReceived,0);
+  const totalBelanja=rincian.reduce((a,x)=>a+x.amountReceived,0),totalItem=rincian.reduce((a,x)=>a+x.items.reduce((s,i)=>s+i.qty,0),0);
+  let pk=0,wj=0,hp=false,hw=false;const nid=nk(id),nnm=nk(c.name||CV.cust.nama);
+  ((jr&&jr.rows)||[]).forEach(r=>{const p=nk(r[3]);if(p!==nid&&p!==nnm)return;
+    if(r[2]==='SIMPANAN_POKOK'){pk+=+r[6]||0;hp=true}else if(r[2]==='SIMPANAN_WAJIB'){wj+=+r[6]||0;hw=true}});
+  const agg={};rincian.forEach(x=>x.items.forEach(i=>{const e=agg[i.itemName]||(agg[i.itemName]={q:0,t:0});e.q+=i.qty;e.t+=i.total}));
+  const arr=Object.entries(agg),byQ=arr.slice().sort((a,b)=>b[1].q-a[1].q).slice(0,5),byT=arr.slice().sort((a,b)=>b[1].t-a[1].t).slice(0,6),tr=rincian.slice(0,12).reverse();
+  return{member:{name:c.name||CV.cust.nama||id,email:c.email||'',contact:c.contact||'',state:c.state||'',city:c.city||'',
+      simpananPokok:hp?fmtRp(pk):'–',simpananWajib:hw?fmtRp(wj):'–',nilaiSHU:'–',jabatan:c.city||'',nik:id,tglMasuk:'–',totalSales:totalBelanja,totalReceipts:totalBelanja,balance:+c.balance||0},
+    kpi:{belanjaMonth,belanjaAsOf:maxIso,totalBelanja,totalTransaksi:rincian.length,totalItem},
+    charts:{topItems:{labels:byQ.map(x=>x[0]),values:byQ.map(x=>x[1].q)},donut:{labels:byT.map(x=>x[0]),values:byT.map(x=>x[1].t)},trend:{labels:tr.map(x=>x.trxDate),values:tr.map(x=>x.amountReceived)}},
+    rincian,error:null};
+};
+window.cvOnLogin=function(){
+  CV.on=false;CV.cust=null;CV.real=null;banner();
+  const b=$g('custViewBtn');if(b)b.style.display=(CU&&CU.role==='Viewer')?'none':'';
+  paintBtn();
+};
+const btn=$g('custViewBtn');
+if(btn)btn.addEventListener('click',()=>{if(!CU)return;CV.on?exitCV():pickCustomer()});
+const lo=$g('logoutBtn');
+if(lo)lo.addEventListener('click',()=>{CV.on=false;CV.cust=null;CV.real=null;banner();paintBtn()});
+try{BN_ICONS.ringkasan='fa-file-invoice';BN_LABELS.ringkasan='Ringkasan';
+  const i=BN_PRIORITY.indexOf('changepwd');BN_PRIORITY.splice(i<0?BN_PRIORITY.length:i,0,'ringkasan')}catch(e){}
+})();
+</script>
 </body>
 </html>
