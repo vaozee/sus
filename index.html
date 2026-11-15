@@ -4062,7 +4062,41 @@ window.pgImportBelanja=async function(){
   wire();restore();loadInfo();
 };
 // diekspos untuk pengujian
-window.KopImport={scanSQL,computeTrx,exportRows,periodDates,monthForDate,ymd,S};
+// ── Sinkron per PERIODE (dipakai halaman Ringkasan Belanja): bangun transaksi dari tabel SQL lokal tanpa mengubah state halaman Impor
+function autoTables(){
+  const ns=[...S.tables.keys()],has=(n,cols)=>{const c=lc(S.tables.get(n));return cols.every(x=>c.includes(x))};
+  const ci=ns.filter(n=>has(n,['kode','nama_barang','qty'])),it=ci.find(n=>/item|detail/.test(n.toLowerCase()))||ci[0]||'';
+  const cp=ns.filter(n=>n!==it&&has(n,['kode','tanggal','jumlah'])),pj=cp.find(n=>/penjualan|jual/.test(n.toLowerCase()))||cp[0]||'';
+  return[pj,it];
+}
+function trxForRange(from,to){
+  const o={trx:S.trx,stat:S.stat,from:S.ui.from,to:S.ui.to,s1:S.ui.s1,s2:S.ui.s2,ex:S.excluded};
+  try{
+    if(!S.tables.has(S.ui.s1)||!S.tables.has(S.ui.s2)){const [a,b]=autoTables();S.ui.s1=a;S.ui.s2=b}
+    S.ui.from=from;S.ui.to=to;S.excluded=new Set();computeTrx();
+    return{trx:S.trx.slice(),err:S.stat.err};
+  }finally{S.trx=o.trx;S.stat=o.stat;S.ui.from=o.from;S.ui.to=o.to;S.ui.s1=o.s1;S.ui.s2=o.s2;S.excluded=o.ex}
+}
+async function syncPeriod(sel,periodKey,onMsg,updateBelanja){
+  if(!USE_BACKEND||!SESSION_TOKEN)return{ok:false,error:'Belum terhubung ke backend (login online dulu).'};
+  if(!sel.length)return{ok:false,error:'Tidak ada transaksi pada periode ini.'};
+  onMsg&&onMsg('Mencocokkan NIK dengan Code Pelanggan di Sheet1…');
+  if(!KSMEM.srv)await loadMembers(true);
+  const rs=await resolveMembersServer(sel);if(!rs.ok)return{ok:false,error:rs.error};
+  const rows=exportRows(sel);if(!rows.length)return{ok:false,error:'Transaksi pada periode ini tidak punya item.'};
+  const total=Math.ceil(rows.length/BATCH),jobId=Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+  const ds=sel.map(t=>t.tgl).filter(Boolean).sort();
+  const meta={period:periodKey,trx:sel.length,rows:rows.length,customers:new Set(sel.map(t=>t.code)).size,dataFrom:ds[0]||'',dataTo:ds[ds.length-1]||''};
+  let last=null;
+  for(let i=0;i<total;i++){
+    onMsg&&onMsg(`Mengirim periode ${periodKey} — batch ${i+1}/${total} (${fmtNum(Math.min((i+1)*BATCH,rows.length))}/${fmtNum(rows.length)} baris)…`);
+    const r=await sendBatch({cols:RCOLS,rows:rows.slice(i*BATCH,(i+1)*BATCH),jobId,batchIndex:i,totalBatches:total,mode:'replace',updateBelanja:!!updateBelanja,meta,sheetName:'Rincian '+periodKey});
+    if(!r||r.ok===false)return{ok:false,error:`batch ${i+1}/${total}: ${r&&r.error?r.error:'tidak ada respons dari backend'}`};
+    last=r;
+  }
+  return{ok:true,rows:rows.length,trx:sel.length,last};
+}
+window.KopImport={scanSQL,computeTrx,exportRows,periodDates,monthForDate,ymd,S,trxForRange,syncPeriod};
 })();
 </script>
 
@@ -4718,7 +4752,7 @@ async function driveTotals(){
     const dmy=String(r.trxDate||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/),iso=r.trxIso||(dmy?dmy[3]+'-'+p2(dmy[2])+'-'+p2(dmy[1]):isoDate(r.trxDate));if(!iso)return;   // backend: dd/MM/yyyy
     const its=Array.isArray(r.items)?r.items:[];
     const tot=its.length?its.reduce((a,i)=>a+(+i.total||0),0):(+r.amountReceived||0);
-    addTo(m,perKey(iso),tot);
+    addTo(m,r.periode||perKey(iso),tot);
   });
   return{totals:m};
 }
@@ -4766,8 +4800,8 @@ async function renderAdmin(pc){
   const so=await sqlSales();
   if(!so){pc.innerHTML=head+`<div class="tc"><p style="padding:14px;color:var(--tl)"><i class="fas fa-circle-info"></i> Data SQL lokal belum dimuat. Unggah file SQL di <b>Impor Belanja (SQL)</b> dulu, atau pastikan sumber data halaman = SQL lokal.</p><button class="btn btn-pr" id="rkGo"><i class="fas fa-file-import"></i> Buka Impor Belanja</button></div>`;
     const g=$g('rkGo');if(g)g.onclick=()=>goto('importbelanja');return}
-  const by=new Map(),pers=new Set();
-  so.forEach(r=>{const iso=isoDate(r.soDate);if(!iso)return;const pk=perKey(iso);pers.add(pk);
+  const by=new Map(),pers=new Set(),pcount=new Map();
+  so.forEach(r=>{const iso=isoDate(r.soDate);if(!iso)return;const pk=perKey(iso);pers.add(pk);const pc=pcount.get(pk)||{n:0,t:0};pc.n++;pc.t+=+r.totalSOAmount||0;pcount.set(pk,pc);
     const k=String(r.customerId),e=by.get(k)||{id:k,nama:r.customerName||k,t:new Map()};addTo(e.t,pk,+r.totalSOAmount||0);by.set(k,e)});
   const per=[...pers].sort().reverse();
   if(!per.length){pc.innerHTML=head+`<div class="tc"><p style="padding:14px">Tidak ada transaksi bertanggal pada data SQL.</p></div>`;return}
@@ -4777,8 +4811,11 @@ async function renderAdmin(pc){
   <label>Cari pelanggan<input class="si" id="rkQ" placeholder="Nama / ID..."></label></div>
   <div id="rkInfo" style="font-size:.82rem;color:var(--tl);margin:10px 0"></div>
   <div class="ib-tw" style="overflow-x:auto"><table><thead><tr><th>ID</th><th>Nama</th><th style="text-align:right">Total Belanja</th></tr></thead><tbody id="rkBody"></tbody></table></div></div>
-<div class="tc"><p style="font-size:.82rem;color:var(--tl)"><i class="fas fa-cloud-arrow-up"></i> Pelanggan melihat ringkasannya dari data <b>Google Drive</b>. Kirim tiap periode lewat <b>Impor Belanja → Kirim ke Google Drive</b> dengan mode <b>Gabung</b>, supaya periode-periode sebelumnya tetap tersimpan (mode Ganti hanya menyisakan periode yang terakhir dikirim).</p>
-<button class="btn btn-ol" id="rkGo2" style="margin-top:8px"><i class="fas fa-file-import"></i> Buka Impor Belanja</button></div>`;
+<div class="tc"><h3><i class="fas fa-cloud-arrow-up"></i> Sinkron rincian belanja ke Google Drive</h3>
+<p style="font-size:.84rem;color:var(--tl);margin:6px 0 12px">Tiap periode disimpan di sheet sendiri (<b>Rincian 2026-10</b>, dst.) dan <b>dibuat otomatis</b>. Mengirim ulang sebuah periode hanya mengganti sheet periode itu; periode lain tidak berubah. Pelanggan melihat ringkasan belanja tiap periodenya dari sheet-sheet ini.</p>
+<div class="btn-grp"><button class="btn btn-pr" id="rkSyncOne" type="button"><i class="fas fa-cloud-arrow-up"></i> Sinkron periode terpilih</button><button class="btn btn-ol" id="rkSyncAll" type="button">Sinkron semua periode</button><button class="btn btn-ol" id="rkChk" type="button"><i class="fas fa-rotate"></i> Cek status di Drive</button></div>
+<div class="ib-msg" id="rkSm" style="margin:10px 0"></div>
+<div class="ib-tw" style="overflow-x:auto"><table><thead><tr><th>Periode</th><th style="text-align:right">Transaksi (SQL)</th><th style="text-align:right">Total belanja</th><th style="text-align:right">Baris di Drive</th><th>Status</th></tr></thead><tbody id="rkStat"></tbody></table></div></div>`;
   const draw=()=>{
     const p=$g('rkFp').value,q=nk($g('rkQ').value);
     const rows=[...by.values()].filter(e=>e.t.has(p)&&(!q||nk(e.id+e.nama).includes(q))).map(e=>({id:e.id,nama:e.nama,v:e.t.get(p)})).sort((a,b)=>b.v-a.v);
@@ -4786,7 +4823,37 @@ async function renderAdmin(pc){
     $g('rkInfo').innerHTML=`${fmtNum(rows.length)} pelanggan · total <b>${fmtRp(tot)}</b>${rows.length>300?' · menampilkan 300 teratas':''}`;
     $g('rkBody').innerHTML=rows.slice(0,300).map(r=>`<tr><td>${esc(r.id)}</td><td>${esc(r.nama)}</td><td style="text-align:right">${fmtRp(r.v)}</td></tr>`).join('')||'<tr><td colspan="3" style="text-align:center;padding:18px">Tidak ada data.</td></tr>';
   };
-  draw();$g('rkFp').onchange=draw;$g('rkQ').oninput=draw;$g('rkGo2').onclick=()=>goto('importbelanja');
+  draw();$g('rkFp').onchange=draw;$g('rkQ').oninput=draw;
+  /* ── sinkron per periode ke Google Drive ── */
+  const stat=new Map(),say=(t,cls)=>{const e=$g('rkSm');if(e){e.textContent=t;e.className='ib-msg'+(cls?' '+cls:'')}};
+  const drawStat=()=>{$g('rkStat').innerHTML=per.map(pk=>{const c=pcount.get(pk)||{n:0,t:0},d=stat.get(pk);
+    return`<tr><td>${esc(perLabel(pk))}</td><td style="text-align:right">${fmtNum(c.n)}</td><td style="text-align:right">${fmtRp(c.t)}</td><td style="text-align:right">${d==null?'–':fmtNum(d)}</td><td>${stat.size||stat.checked?(d?'<span style="color:#22c55e">✓ Sudah di Drive</span>':'<span style="color:#f59e0b">Belum disinkron</span>'):'<span style="opacity:.6">klik "Cek status di Drive"</span>'}</td></tr>`}).join('')};
+  const online=()=>{if(USE_BACKEND&&SESSION_TOKEN)return true;say('Belum terhubung ke backend — login online dulu.','wa');return false};
+  const check=async()=>{if(!online())return;say('Memeriksa sheet periode di Google Drive…');
+    const r=await api('getRincianPeriods',{});
+    if(!r||!r.ok){say((r&&r.error)||'Gagal membaca status — pastikan kopsus-backend.gs terbaru sudah di-deploy.','er');return false}
+    stat.clear();stat.checked=true;(r.data||[]).forEach(x=>stat.set(x.periode,x.rows));drawStat();say(`${fmtNum((r.data||[]).length)} sheet periode ada di Google Drive.`,'ok');return true};
+  const setBusy=b=>['rkSyncOne','rkSyncAll','rkChk'].forEach(i=>{const e=$g(i);if(e)e.disabled=b});
+  const syncKeys=async keys=>{
+    if(!online()||!keys.length)return;
+    if(!confirm(`Sinkron ${keys.length} periode ke Google Drive?\n\nSetiap periode disimpan di sheet "Rincian YYYY-MM" (dibuat otomatis).\nIsi sheet periode yang sama akan diganti dengan data SQL saat ini.`+(keys.includes(per[0])?'\n"Belanja Bulan ini" di Sheet1 ikut diperbarui untuk periode terbaru.':'')))return;
+    const c=cfg();let okN=0,rows=0;setBusy(true);
+    try{
+      for(const pk of keys){
+        const pd=KopImport.periodDates(c.preset,pk,c.sd,c.ed);
+        if(!pd){say('Periode tidak valid: '+pk,'er');break}
+        const t=KopImport.trxForRange(pd[0],pd[1]);
+        if(t.err){say(t.err,'er');break}
+        const r=await KopImport.syncPeriod(t.trx,pk,m=>say(m),pk===per[0]&&!!KopImport.S.ui.upd);
+        if(!r.ok){say(`Periode ${perLabel(pk)} gagal: ${r.error}`,'er');break}
+        okN++;rows+=r.rows;
+      }
+    }finally{setBusy(false)}
+    if(okN){invalidateCache('viewerData');await check();say(`✓ ${fmtNum(okN)} periode (${fmtNum(rows)} baris) tersimpan ke Google Drive. Pelanggan kini melihat ringkasan belanja per periodenya.`+(okN<keys.length?` ${keys.length-okN} periode belum terkirim.`:''),okN<keys.length?'wa':'ok')}
+  };
+  $g('rkSyncOne').onclick=()=>syncKeys([$g('rkFp').value]);
+  $g('rkSyncAll').onclick=()=>syncKeys(per.slice().reverse());   // lama → baru, periode terbaru terakhir
+  $g('rkChk').onclick=check;drawStat();
 }
 window.pgRingkasan=async function(){
   const pc=$g('pageContent');
